@@ -24,7 +24,19 @@ interface ScreenerAsset {
   lastFetchAt?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  metrics?: Record<string, string>;
 }
+
+// Helper to get metric value from screenerAssets
+const getMetricValue = (screenerAssets: ScreenerAsset[] | undefined, metricKey: string): string | null => {
+  if (!screenerAssets) return null;
+  for (const sa of screenerAssets) {
+    if (sa.metrics && metricKey in sa.metrics) {
+      return sa.metrics[metricKey];
+    }
+  }
+  return null;
+};
 
 interface Listing {
   id: number;
@@ -85,6 +97,31 @@ export const AssetShow = () => {
         </Descriptions.Item>
         <Descriptions.Item label="Updated At">
           {record?.updatedAt ? <DateField value={record.updatedAt} format="DD/MM/YYYY" /> : "-"}
+        </Descriptions.Item>
+      </Descriptions>
+
+      <Title level={5} style={{ marginTop: 24 }}>Metrics</Title>
+      <Descriptions bordered column={4}>
+        <Descriptions.Item label="VIS Score">
+          {getMetricValue(record?.screenerAssets, "VIS Score") ?? "-"}
+        </Descriptions.Item>
+        <Descriptions.Item label="VIS Stars">
+          {getMetricValue(record?.screenerAssets, "Global Stars") ?? "-"}
+        </Descriptions.Item>
+        <Descriptions.Item label="ZB Invest.">
+          {getMetricValue(record?.screenerAssets, "surperf_ratings.investisseur") ?? "-"}
+        </Descriptions.Item>
+        <Descriptions.Item label="Fintel comp">
+          {getMetricValue(record?.screenerAssets, "metascreener.fintel-score") ?? "-"}
+        </Descriptions.Item>
+        <Descriptions.Item label="ZB comp">
+          {getMetricValue(record?.screenerAssets, "metascreener.zonebourse-score") ?? "-"}
+        </Descriptions.Item>
+        <Descriptions.Item label="VIS comp">
+          {getMetricValue(record?.screenerAssets, "metascreener.vis-score") ?? "-"}
+        </Descriptions.Item>
+        <Descriptions.Item label="VIS PBS">
+          {getMetricValue(record?.screenerAssets, "metascreener.piotroski-beneish-sloan-score") ?? "-"}
         </Descriptions.Item>
       </Descriptions>
 

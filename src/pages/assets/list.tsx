@@ -3,11 +3,35 @@ import {
   DeleteButton,
   EditButton,
   List,
+  NumberField,
   ShowButton,
   useTable,
 } from "@refinedev/antd";
 import { type BaseRecord } from "@refinedev/core";
 import { Space, Table, Tag } from "antd";
+
+interface ScreenerAsset {
+  id: number;
+  screener: { id: number; name: string };
+  metrics: Record<string, string>;
+}
+
+interface Asset extends BaseRecord {
+  lastPrice?: string | null;
+  currency?: string | null;
+  screenerAssets?: ScreenerAsset[];
+}
+
+// Helper to get metric value from screenerAssets
+const getMetricValue = (screenerAssets: ScreenerAsset[] | undefined, metricKey: string): string | null => {
+  if (!screenerAssets) return null;
+  for (const sa of screenerAssets) {
+    if (sa.metrics && metricKey in sa.metrics) {
+      return sa.metrics[metricKey];
+    }
+  }
+  return null;
+};
 
 const ASSET_TYPE_COLORS: Record<string, string> = {
   stock: "blue",
@@ -44,6 +68,68 @@ export const AssetList = () => {
           }
         />
         <Table.Column dataIndex="currency" title="Currency" />
+        <Table.Column
+          dataIndex="lastPrice"
+          title="Last Price"
+          render={(value: string | null, record: Asset) => {
+            if (!value) return "-";
+            return (
+              <span>
+                <NumberField value={parseFloat(value)} options={{ minimumFractionDigits: 2, maximumFractionDigits: 4 }} />
+                {record.currency && <span> {record.currency}</span>}
+              </span>
+            );
+          }}
+        />
+        <Table.Column
+          title="VIS Score"
+          render={(_: unknown, record: Asset) => {
+            const value = getMetricValue(record.screenerAssets, "VIS Score");
+            return value !== null ? <NumberField value={parseFloat(value)} /> : "-";
+          }}
+        />
+        <Table.Column
+          title="VIS Stars"
+          render={(_: unknown, record: Asset) => {
+            const value = getMetricValue(record.screenerAssets, "Global Stars");
+            return value !== null ? <NumberField value={parseFloat(value)} /> : "-";
+          }}
+        />
+        <Table.Column
+          title="ZB Invest."
+          render={(_: unknown, record: Asset) => {
+            const value = getMetricValue(record.screenerAssets, "surperf_ratings.investisseur");
+            return value !== null ? <NumberField value={parseFloat(value)} /> : "-";
+          }}
+        />
+        <Table.Column
+          title="Fintel comp"
+          render={(_: unknown, record: Asset) => {
+            const value = getMetricValue(record.screenerAssets, "metascreener.fintel-score");
+            return value !== null ? <NumberField value={parseFloat(value)} /> : "-";
+          }}
+        />
+        <Table.Column
+          title="ZB comp"
+          render={(_: unknown, record: Asset) => {
+            const value = getMetricValue(record.screenerAssets, "metascreener.zonebourse-score");
+            return value !== null ? <NumberField value={parseFloat(value)} /> : "-";
+          }}
+        />
+        <Table.Column
+          title="VIS comp"
+          render={(_: unknown, record: Asset) => {
+            const value = getMetricValue(record.screenerAssets, "metascreener.vis-score");
+            return value !== null ? <NumberField value={parseFloat(value)} /> : "-";
+          }}
+        />
+        <Table.Column
+          title="VIS PBS"
+          render={(_: unknown, record: Asset) => {
+            const value = getMetricValue(record.screenerAssets, "metascreener.piotroski-beneish-sloan-score");
+            return value !== null ? <NumberField value={parseFloat(value)} /> : "-";
+          }}
+        />
         <Table.Column dataIndex="countryCode" title="Country" />
         <Table.Column
           dataIndex="createdAt"

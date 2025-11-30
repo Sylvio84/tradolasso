@@ -1,7 +1,7 @@
-import { NumberField, Show, TextField } from "@refinedev/antd";
+import { NumberField, Show, ShowButton, TextField } from "@refinedev/antd";
 import { useShow, useInvalidate } from "@refinedev/core";
-import { Typography, Table, Card, Space, Button, Modal, Form, Input, InputNumber, Select, message } from "antd";
-import { EditOutlined } from "@ant-design/icons";
+import { Typography, Table, Card, Space, Button, Modal, Form, Input, InputNumber, Select, message, DatePicker } from "antd";
+import { EditOutlined, SwapOutlined, PlusOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { http } from "../../providers/hydra";
 
@@ -20,6 +20,7 @@ interface WalletLine {
     id: number;
     name: string;
     symbol: string;
+    lastPrice: string | null;
   };
 }
 
@@ -29,12 +30,31 @@ interface Currency {
   symbol: string;
 }
 
+interface TransactionType {
+  value: string;
+  label: string;
+}
+
+interface Asset {
+  id: number;
+  symbol: string;
+  name: string;
+  currency: string | null;
+}
+
 export const WalletShow = () => {
   const [editingLine, setEditingLine] = useState<WalletLine | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [transactionTypes, setTransactionTypes] = useState<TransactionType[]>([]);
+  const [transactionLine, setTransactionLine] = useState<WalletLine | null>(null);
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const [transactionForm] = Form.useForm();
+  const [savingTransaction, setSavingTransaction] = useState(false);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [assetsLoading, setAssetsLoading] = useState(false);
   const invalidate = useInvalidate();
 
   const {
@@ -50,8 +70,33 @@ export const WalletShow = () => {
         console.error("Erreur chargement devises:", error);
       }
     };
+    const loadTransactionTypes = async () => {
+      try {
+        const { data } = await http("/transaction_types");
+        setTransactionTypes(data.member || []);
+      } catch (error) {
+        console.error("Erreur chargement types de transaction:", error);
+      }
+    };
     loadCurrencies();
+    loadTransactionTypes();
   }, []);
+
+  const searchAssets = async () => {
+    setAssetsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        itemsPerPage: "100",
+        pagination: "false",
+      });
+      const { data } = await http(`/assets?${params}`);
+      setAssets(data.member || []);
+    } catch (error) {
+      console.error("Erreur recherche assets:", error);
+    } finally {
+      setAssetsLoading(false);
+    }
+  };
 
   const record = data?.data;
   const lines: WalletLine[] = record?.walletLines || [];
@@ -106,6 +151,75 @@ export const WalletShow = () => {
     form.resetFields();
   };
 
+  const handleTransaction = (line: WalletLine) => {
+    setTransactionLine(line);
+    transactionForm.setFieldsValue({
+      transactionType: "buy",
+      currency: line.currency || "EUR",
+      conversionRate: line.buyConversionRate ? parseFloat(line.buyConversionRate) : 1,
+    });
+    setIsTransactionModalOpen(true);
+  };
+
+  const handleNewTransaction = () => {
+    setTransactionLine(null);
+    transactionForm.setFieldsValue({
+      transactionType: "buy",
+      currency: "EUR",
+      conversionRate: 1,
+    });
+    searchAssets();
+    setIsTransactionModalOpen(true);
+  };
+
+  const handleSaveTransaction = async () => {
+    if (!record?.id) return;
+    try {
+      setSavingTransaction(true);
+      const values = await transactionForm.validateFields();
+
+      const payload: Record<string, unknown> = {
+        transactionType: values.transactionType,
+        transactionDate: values.transactionDate?.toISOString() || null,
+        quantity: values.quantity?.toString() || null,
+        unitPrice: values.unitPrice?.toString() || null,
+        fees: values.fees?.toString() || null,
+        currency: values.currency,
+        conversionRate: values.conversionRate?.toString() || null,
+        notes: values.notes,
+      };
+
+      if (transactionLine) {
+        payload.walletLineId = transactionLine.id;
+      } else if (values.assetId) {
+        payload.assetId = values.assetId;
+      }
+
+      await http(`/wallets/${record.id}/transactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      message.success("Transaction créée");
+      setIsTransactionModalOpen(false);
+      setTransactionLine(null);
+      transactionForm.resetFields();
+      invalidate({ resource: "wallets", invalidates: ["detail"] });
+    } catch (error) {
+      message.error("Erreur lors de la création de la transaction");
+      console.error(error);
+    } finally {
+      setSavingTransaction(false);
+    }
+  };
+
+  const handleCancelTransaction = () => {
+    setIsTransactionModalOpen(false);
+    setTransactionLine(null);
+    transactionForm.resetFields();
+  };
+
   return (
     <Show isLoading={isLoading}>
       <Space direction="vertical" size="large" style={{ width: "100%" }}>
@@ -118,12 +232,67 @@ export const WalletShow = () => {
           <TextField value={record?.brokerName} />
         </Card>
 
-        <Card title="Positions du wallet">
+        <Card
+          title="Positions du wallet"
+          extra={
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleNewTransaction}
+            >
+              Transaction
+            </Button>
+          }
+        >
           <Table
             dataSource={lines}
             rowKey="id"
             pagination={false}
             size="small"
+            summary={() => {
+              let totalBuyEur = 0;
+              let totalCurrentEur = 0;
+
+              lines.forEach((line) => {
+                const quantity = parseFloat(line.quantity || "0");
+                const buyPrice = parseFloat(line.buyPrice || "0");
+                const lastPrice = parseFloat(line.asset?.lastPrice || "0");
+                const rate = parseFloat(line.buyConversionRate || "1");
+
+                totalBuyEur += quantity * buyPrice * rate;
+                totalCurrentEur += quantity * lastPrice * rate;
+              });
+
+              const pnlNet = totalCurrentEur - totalBuyEur;
+              const pnlPercent = totalBuyEur > 0 ? ((totalCurrentEur - totalBuyEur) / totalBuyEur) * 100 : 0;
+              const isPositive = pnlNet >= 0;
+
+              return (
+                <Table.Summary.Row style={{ fontWeight: "bold", backgroundColor: "rgba(0,0,0,0.02)" }}>
+                  <Table.Summary.Cell index={0} colSpan={3}>
+                    <Typography.Text strong>Total ({lines.length} assets)</Typography.Text>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={3}>
+                    <NumberField value={totalBuyEur} /> €
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={4} />
+                  <Table.Summary.Cell index={5}>
+                    <NumberField value={totalCurrentEur} /> €
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={6}>
+                    <Typography.Text type={isPositive ? "success" : "danger"} strong>
+                      {isPositive ? "+" : ""}<NumberField value={pnlNet} /> €
+                    </Typography.Text>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={7}>
+                    <Typography.Text type={isPositive ? "success" : "danger"} strong>
+                      {isPositive ? "+" : ""}{pnlPercent.toFixed(2)} %
+                    </Typography.Text>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={8} />
+                </Table.Summary.Row>
+              );
+            }}
           >
             <Table.Column
               title="Asset"
@@ -188,14 +357,108 @@ export const WalletShow = () => {
               }}
             />
             <Table.Column
+              title="Prix actuel"
+              render={(_, record: WalletLine) => {
+                const lastPrice = record.asset?.lastPrice;
+                if (!lastPrice) return "-";
+                const price = parseFloat(lastPrice);
+                const rate = parseFloat(record.buyConversionRate || "1");
+                const priceEur = price * rate;
+                const isEur = record.currency === "EUR" || !record.currency;
+                return (
+                  <div>
+                    <div><NumberField value={priceEur} /> €</div>
+                    {!isEur && (
+                      <Typography.Text type="secondary">
+                        <NumberField value={price} /> {record.currency}
+                      </Typography.Text>
+                    )}
+                  </div>
+                );
+              }}
+            />
+            <Table.Column
+              title="Total actuel"
+              render={(_, record: WalletLine) => {
+                const quantity = parseFloat(record.quantity || "0");
+                const lastPrice = parseFloat(record.asset?.lastPrice || "0");
+                const total = quantity * lastPrice;
+                if (!total) return "-";
+                const rate = parseFloat(record.buyConversionRate || "1");
+                const totalEur = total * rate;
+                const isEur = record.currency === "EUR" || !record.currency;
+                return (
+                  <div>
+                    <div><NumberField value={totalEur} /> €</div>
+                    {!isEur && (
+                      <Typography.Text type="secondary" style={{ fontSize: "12px" }}>
+                        <NumberField value={total} /> {record.currency}
+                      </Typography.Text>
+                    )}
+                  </div>
+                );
+              }}
+            />
+            <Table.Column
+              title="+/- net"
+              render={(_, record: WalletLine) => {
+                const quantity = parseFloat(record.quantity || "0");
+                const buyPrice = parseFloat(record.buyPrice || "0");
+                const lastPrice = parseFloat(record.asset?.lastPrice || "0");
+                if (!quantity || !buyPrice || !lastPrice) return "-";
+                const rate = parseFloat(record.buyConversionRate || "1");
+                const totalBuy = quantity * buyPrice * rate;
+                const totalCurrent = quantity * lastPrice * rate;
+                const diff = totalCurrent - totalBuy;
+                const isPositive = diff >= 0;
+                return (
+                  <Typography.Text type={isPositive ? "success" : "danger"}>
+                    {isPositive ? "+" : ""}<NumberField value={diff} /> €
+                  </Typography.Text>
+                );
+              }}
+            />
+            <Table.Column
+              title="+/- %"
+              render={(_, record: WalletLine) => {
+                const buyPrice = parseFloat(record.buyPrice || "0");
+                const lastPrice = parseFloat(record.asset?.lastPrice || "0");
+                if (!buyPrice || !lastPrice) return "-";
+                const percent = ((lastPrice - buyPrice) / buyPrice) * 100;
+                const isPositive = percent >= 0;
+                return (
+                  <Typography.Text type={isPositive ? "success" : "danger"}>
+                    {isPositive ? "+" : ""}{percent.toFixed(2)} %
+                  </Typography.Text>
+                );
+              }}
+            />
+            <Table.Column
               title="Actions"
               render={(_, record: WalletLine) => (
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<EditOutlined />}
-                  onClick={() => handleEdit(record)}
-                />
+                <Space>
+                  {record.asset?.id && (
+                    <ShowButton
+                      hideText
+                      size="small"
+                      resource="assets"
+                      recordItemId={record.asset.id}
+                    />
+                  )}
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<SwapOutlined />}
+                    onClick={() => handleTransaction(record)}
+                    title="Ajouter une transaction"
+                  />
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<EditOutlined />}
+                    onClick={() => handleEdit(record)}
+                  />
+                </Space>
               )}
             />
           </Table>
@@ -242,6 +505,97 @@ export const WalletShow = () => {
 
           <Form.Item label="Notes" name="notes">
             <TextArea rows={4} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={transactionLine ? `Transaction - ${transactionLine.asset?.symbol || ""}` : "Nouvelle transaction"}
+        open={isTransactionModalOpen}
+        onOk={handleSaveTransaction}
+        onCancel={handleCancelTransaction}
+        confirmLoading={savingTransaction}
+        okText="Créer"
+        cancelText="Annuler"
+        width={600}
+      >
+        <Form form={transactionForm} layout="vertical">
+          {!transactionLine && (
+            <Form.Item
+              label="Asset"
+              name="assetId"
+              rules={[{ required: true, message: "Asset requis" }]}
+            >
+              <Select
+                placeholder="Rechercher un asset par symbole"
+                showSearch
+                optionFilterProp="label"
+                loading={assetsLoading}
+                options={assets.map((a) => ({
+                  value: a.id,
+                  label: `${a.symbol} - ${a.name}`,
+                }))}
+              />
+            </Form.Item>
+          )}
+
+          <Form.Item
+            label="Type de transaction"
+            name="transactionType"
+            rules={[{ required: true, message: "Type requis" }]}
+          >
+            <Select
+              placeholder="Sélectionner un type"
+              options={transactionTypes
+                .filter((t) => !["cash_deposit", "cash_withdrawal"].includes(t.value))
+                .map((t) => ({
+                  value: t.value,
+                  label: t.label,
+                }))}
+            />
+          </Form.Item>
+
+          <Form.Item label="Date de transaction" name="transactionDate">
+            <DatePicker
+              style={{ width: "100%" }}
+              format="DD/MM/YYYY"
+              placeholder="Sélectionner une date"
+            />
+          </Form.Item>
+
+          <Space style={{ width: "100%", display: "flex" }} size="middle">
+            <Form.Item label="Quantité" name="quantity" style={{ flex: 1 }}>
+              <InputNumber style={{ width: "100%" }} step={0.0001} />
+            </Form.Item>
+            <Form.Item label="Prix unitaire" name="unitPrice" style={{ flex: 1 }}>
+              <InputNumber style={{ width: "100%" }} step={0.01} />
+            </Form.Item>
+          </Space>
+
+          <Space style={{ width: "100%", display: "flex" }} size="middle">
+            <Form.Item label="Devise" name="currency" style={{ flex: 1 }}>
+              <Select
+                placeholder="Sélectionner une devise"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                options={currencies.map((c) => ({
+                  value: c.code,
+                  label: c.label,
+                }))}
+              />
+            </Form.Item>
+            <Form.Item label="Taux de conversion" name="conversionRate" style={{ flex: 1 }}>
+              <InputNumber style={{ width: "100%" }} step={0.0001} />
+            </Form.Item>
+          </Space>
+
+          <Form.Item label="Frais" name="fees">
+            <InputNumber style={{ width: "100%" }} step={0.01} />
+          </Form.Item>
+
+          <Form.Item label="Notes" name="notes">
+            <TextArea rows={3} />
           </Form.Item>
         </Form>
       </Modal>
