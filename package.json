@@ -36,7 +36,9 @@
   },
   "scripts": {
     "dev": "refine dev",
+    "build:dev": "npm run build:embed:dev && refine build",
     "build": "tsc && refine build",
+    "build:check": "tsc && npm run build:embed:prod && refine build",
     "start": "refine start",
     "refine": "refine"
   },
