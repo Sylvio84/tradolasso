@@ -8,6 +8,12 @@ import { http } from "../../providers/hydra";
 const { Title } = Typography;
 const { TextArea } = Input;
 
+interface ScreenerAsset {
+  id: number;
+  screener?: { id: number; name: string };
+  metrics?: Record<string, string>;
+}
+
 interface WalletLine {
   id: number;
   quantity: string | null;
@@ -21,8 +27,20 @@ interface WalletLine {
     name: string;
     symbol: string;
     lastPrice: string | null;
+    screenerAssets?: ScreenerAsset[];
   };
 }
+
+// Helper to get lasso.score from screenerAssets
+const getLassoScore = (screenerAssets: ScreenerAsset[] | undefined): number | null => {
+  if (!screenerAssets) return null;
+  for (const sa of screenerAssets) {
+    if (sa.metrics && "lasso.score" in sa.metrics) {
+      return parseFloat(sa.metrics["lasso.score"]);
+    }
+  }
+  return null;
+};
 
 interface Currency {
   code: string;
@@ -100,6 +118,12 @@ export const WalletShow = () => {
 
   const record = data?.data;
   const lines: WalletLine[] = record?.walletLines || [];
+
+  useEffect(() => {
+    if (record?.name) {
+      document.title = `${record.name} | Wallet`;
+    }
+  }, [record?.name]);
 
   const handleEdit = (line: WalletLine) => {
     setEditingLine(line);
@@ -269,27 +293,27 @@ export const WalletShow = () => {
 
               return (
                 <Table.Summary.Row style={{ fontWeight: "bold", backgroundColor: "rgba(0,0,0,0.02)" }}>
-                  <Table.Summary.Cell index={0} colSpan={3}>
+                  <Table.Summary.Cell index={0} colSpan={4}>
                     <Typography.Text strong>Total ({lines.length} assets)</Typography.Text>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={3}>
+                  <Table.Summary.Cell index={4}>
                     <NumberField value={totalBuyEur} /> €
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={4} />
-                  <Table.Summary.Cell index={5}>
+                  <Table.Summary.Cell index={5} />
+                  <Table.Summary.Cell index={6}>
                     <NumberField value={totalCurrentEur} /> €
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={6}>
+                  <Table.Summary.Cell index={7}>
                     <Typography.Text type={isPositive ? "success" : "danger"} strong>
                       {isPositive ? "+" : ""}<NumberField value={pnlNet} /> €
                     </Typography.Text>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={7}>
+                  <Table.Summary.Cell index={8}>
                     <Typography.Text type={isPositive ? "success" : "danger"} strong>
                       {isPositive ? "+" : ""}{pnlPercent.toFixed(2)} %
                     </Typography.Text>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={8} />
+                  <Table.Summary.Cell index={9} />
                 </Table.Summary.Row>
               );
             }}
@@ -307,6 +331,13 @@ export const WalletShow = () => {
                   )}
                 </span>
               )}
+            />
+            <Table.Column
+              title="Lasso"
+              render={(_: unknown, record: WalletLine) => {
+                const score = getLassoScore(record.asset?.screenerAssets);
+                return score !== null ? <NumberField value={score} options={{ maximumFractionDigits: 1 }} /> : "-";
+              }}
             />
             <Table.Column
               title="Quantité"

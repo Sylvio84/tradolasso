@@ -2,13 +2,15 @@ import {
   DateField,
   DeleteButton,
   EditButton,
+  FilterDropdown,
   List,
   NumberField,
   ShowButton,
+  useSelect,
   useTable,
 } from "@refinedev/antd";
 import { type BaseRecord } from "@refinedev/core";
-import { Space, Table, Tag } from "antd";
+import { Select, Space, Table, Tag } from "antd";
 
 interface ScreenerAsset {
   id: number;
@@ -19,6 +21,7 @@ interface ScreenerAsset {
 interface Asset extends BaseRecord {
   lastPrice?: string | null;
   currency?: string | null;
+  lassoScore?: number | null;
   screenerAssets?: ScreenerAsset[];
 }
 
@@ -44,9 +47,20 @@ const ASSET_TYPE_COLORS: Record<string, string> = {
   cash_account: "default",
 };
 
+interface AssetType {
+  value: string;
+  label: string;
+}
+
 export const AssetList = () => {
   const { tableProps } = useTable({
     syncWithLocation: true,
+  });
+
+  const { selectProps: typeSelectProps } = useSelect<AssetType>({
+    resource: "asset_types",
+    optionLabel: "label",
+    optionValue: "value",
   });
 
   return (
@@ -66,6 +80,17 @@ export const AssetList = () => {
               "-"
             )
           }
+          filterDropdown={(props) => (
+            <FilterDropdown {...props}>
+              <Select
+                {...typeSelectProps}
+                allowClear
+                placeholder="Filtrer par type"
+                style={{ minWidth: 200 }}
+              />
+            </FilterDropdown>
+          )}
+          defaultFilteredValue={[]}
         />
         <Table.Column dataIndex="currency" title="Currency" />
         <Table.Column
@@ -80,6 +105,13 @@ export const AssetList = () => {
               </span>
             );
           }}
+        />
+        <Table.Column
+          dataIndex="lassoScore"
+          title="Lasso Score"
+          render={(value: number | null) =>
+            value !== null && value !== undefined ? <NumberField value={value} /> : "-"
+          }
         />
         <Table.Column
           title="VIS Score"

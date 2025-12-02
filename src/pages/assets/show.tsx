@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { DateField, Show, TextField } from "@refinedev/antd";
 import { useShow } from "@refinedev/core";
 import { Typography, Tag, Descriptions, Table, Card, Space, Tooltip } from "antd";
@@ -58,6 +59,12 @@ export const AssetShow = () => {
 
   const record = data?.data;
 
+  useEffect(() => {
+    if (record?.symbol) {
+      document.title = `${record.symbol} - ${record.name || ""} | Refine`;
+    }
+  }, [record]);
+
   return (
     <Show isLoading={isLoading}>
       <Title level={5}>Asset Details</Title>
@@ -102,6 +109,9 @@ export const AssetShow = () => {
 
       <Title level={5} style={{ marginTop: 24 }}>Metrics</Title>
       <Descriptions bordered column={4}>
+        <Descriptions.Item label="Lasso Score">
+          <TextField value={record?.lassoScore ?? "-"} />
+        </Descriptions.Item>
         <Descriptions.Item label="VIS Score">
           {getMetricValue(record?.screenerAssets, "VIS Score") ?? "-"}
         </Descriptions.Item>

@@ -2,10 +2,10 @@
   RewriteEngine On
   RewriteBase /
 
-  # Si le fichier ou dossier existe, le servir directement
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
+  # Servir les fichiers statiques directement (JS, CSS, images, etc.)
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
 
-  # Sinon, rediriger vers index.html
+  # Toutes les autres requêtes vers index.html (SPA routing)
   RewriteRule ^ index.html [QSA,L]
 </IfModule>

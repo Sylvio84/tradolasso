@@ -33,6 +33,12 @@ import {
   AssetList,
   AssetShow,
 } from "./pages/assets";
+import {
+  TransactionCreate,
+  TransactionEdit,
+  TransactionList,
+  TransactionShow,
+} from "./pages/transactions";
 
 function App() {
   return (
@@ -64,6 +70,17 @@ function App() {
                     edit: "/assets/edit/:id",
                     show: "/assets/show/:id",
                     meta: {
+                      canDelete: true,
+                    },
+                  },
+                  {
+                    name: "wallet_transactions",
+                    list: "/transactions",
+                    create: "/transactions/create",
+                    edit: "/transactions/edit/:id",
+                    show: "/transactions/show/:id",
+                    meta: {
+                      label: "Transactions",
                       canDelete: true,
                     },
                   },
@@ -100,6 +117,12 @@ function App() {
                       <Route path="create" element={<AssetCreate />} />
                       <Route path="edit/:id" element={<AssetEdit />} />
                       <Route path="show/:id" element={<AssetShow />} />
+                    </Route>
+                    <Route path="/transactions">
+                      <Route index element={<TransactionList />} />
+                      <Route path="create" element={<TransactionCreate />} />
+                      <Route path="edit/:id" element={<TransactionEdit />} />
+                      <Route path="show/:id" element={<TransactionShow />} />
                     </Route>
                     <Route path="*" element={<ErrorComponent />} />
                   </Route>
