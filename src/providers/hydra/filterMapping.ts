@@ -23,47 +23,135 @@ const isDateField = (field: string): boolean => {
 };
 
 /**
+ * Metric fields that use metric[field] format
+ */
+const METRIC_FIELDS = [
+  'lassoScore',
+  'visScore',
+  'visStars',
+  'globalStars',
+  'piotrosBeneishSloanScore',
+  'zonebourseScore',
+  'zonebourseInvestisseur',
+  'fintelScore',
+] as const;
+
+/**
+ * Indicator fields that use indicator[field] format
+ */
+const INDICATOR_FIELDS = [
+  'adx',
+  'atr',
+  'atrPercent',
+  'sma200',
+  'wma12',
+  'distanceCloseSma200',
+  'distanceWma12Sma200',
+  'close',
+] as const;
+
+/**
+ * Fields that use direct [field][gte/lte] format
+ */
+const RANGE_FIELDS = [
+  'marketcap',
+] as const;
+
+/**
+ * Get the API prefix for a field (metric, indicator, or none)
+ */
+const getFieldPrefix = (field: string): string => {
+  if (METRIC_FIELDS.includes(field as typeof METRIC_FIELDS[number])) {
+    return `metric[${field}]`;
+  }
+  if (INDICATOR_FIELDS.includes(field as typeof INDICATOR_FIELDS[number])) {
+    return `indicator[${field}]`;
+  }
+  return field;
+};
+
+/**
+ * Check if field is a metric or indicator field
+ */
+const isMetricOrIndicatorField = (field: string): boolean => {
+  return METRIC_FIELDS.includes(field as typeof METRIC_FIELDS[number]) ||
+         INDICATOR_FIELDS.includes(field as typeof INDICATOR_FIELDS[number]);
+};
+
+/**
+ * Check if field is a range field (marketcap, etc.)
+ */
+const isRangeField = (field: string): boolean => {
+  return RANGE_FIELDS.includes(field as typeof RANGE_FIELDS[number]);
+};
+
+/**
  * Map individual filter operator to API parameters
  */
 const mapFilterOperator = (field: string, operator: string, value: any, params: Record<string, any>) => {
+  const prefix = getFieldPrefix(field);
+
   switch (operator) {
     case "eq":
-      params[field] = value;
+      // For metric/indicator fields, handle range filter format "min,max"
+      if (isMetricOrIndicatorField(field) && typeof value === 'string' && value.includes(',')) {
+        const [minVal, maxVal] = value.split(',');
+        if (minVal) {
+          params[`${prefix}[gte]`] = Number(minVal);
+        }
+        if (maxVal) {
+          params[`${prefix}[lte]`] = Number(maxVal);
+        }
+      } else if (isMetricOrIndicatorField(field)) {
+        // Single value means minimum filter
+        params[`${prefix}[gte]`] = value;
+      } else if (isRangeField(field) && typeof value === 'string' && value.includes(',')) {
+        // For range fields like marketcap, handle "min,max" format
+        const [minVal, maxVal] = value.split(',');
+        if (minVal) {
+          params[`${field}[gte]`] = minVal;
+        }
+        if (maxVal) {
+          params[`${field}[lte]`] = maxVal;
+        }
+      } else {
+        params[prefix] = value;
+      }
       break;
 
     case "ne":
-      params[`${field}[not]`] = value;
+      params[`${prefix}[not]`] = value;
       break;
 
     case "lt":
       if (isDateField(field)) {
-        params[`${field}[before]`] = value;
+        params[`${prefix}[before]`] = value;
       } else {
-        params[`${field}[lt]`] = value;
+        params[`${prefix}[lt]`] = value;
       }
       break;
 
     case "gt":
       if (isDateField(field)) {
-        params[`${field}[after]`] = value;
+        params[`${prefix}[after]`] = value;
       } else {
-        params[`${field}[gt]`] = value;
+        params[`${prefix}[gt]`] = value;
       }
       break;
 
     case "gte":
       if (isDateField(field)) {
-        params[`${field}[after]`] = value;
+        params[`${prefix}[after]`] = value;
       } else {
-        params[`${field}[gte]`] = value;
+        params[`${prefix}[gte]`] = value;
       }
       break;
 
     case "lte":
       if (isDateField(field)) {
-        params[`${field}[before]`] = value;
+        params[`${prefix}[before]`] = value;
       } else {
-        params[`${field}[lte]`] = value;
+        params[`${prefix}[lte]`] = value;
       }
       break;
 
@@ -72,19 +160,19 @@ const mapFilterOperator = (field: string, operator: string, value: any, params: 
         // For tags, use the tags[] parameter format for multiple values
         if (Array.isArray(value)) {
           value.forEach(v => {
-            if (!params[`${field}[]`]) params[`${field}[]`] = [];
-            params[`${field}[]`].push(v);
+            if (!params[`${prefix}[]`]) params[`${prefix}[]`] = [];
+            params[`${prefix}[]`].push(v);
           });
         } else {
-          params[`${field}[]`] = [value];
+          params[`${prefix}[]`] = [value];
         }
       } else {
-        params[`${field}[]`] = Array.isArray(value) ? value : [value];
+        params[`${prefix}[]`] = Array.isArray(value) ? value : [value];
       }
       break;
 
     case "contains":
-      params[field] = value;
+      params[prefix] = value;
       break;
 
     case "between":
@@ -92,20 +180,20 @@ const mapFilterOperator = (field: string, operator: string, value: any, params: 
         const [min, max] = value;
 
         if (isDateField(field)) {
-          params[`${field}[after]`] = min;
-          params[`${field}[before]`] = max;
+          params[`${prefix}[after]`] = min;
+          params[`${prefix}[before]`] = max;
         } else {
           // Handle sentinel values for guest filters, price, duration, flexibility
           const sentinelValue = SENTINEL_VALUES[field as keyof typeof SENTINEL_VALUES];
 
           // Add minimum filter if > 0
           if (min > 0) {
-            params[`${field}[gte]`] = min;
+            params[`${prefix}[gte]`] = min;
           }
 
           // Add maximum filter only if not at sentinel value
           if (sentinelValue === undefined || max < sentinelValue) {
-            params[`${field}[lte]`] = max;
+            params[`${prefix}[lte]`] = max;
           }
         }
       }
@@ -113,17 +201,17 @@ const mapFilterOperator = (field: string, operator: string, value: any, params: 
 
     case "after":
       if (isDateField(field)) {
-        params[`${field}[after]`] = value;
+        params[`${prefix}[after]`] = value;
       } else {
-        params[`${field}[gt]`] = value;
+        params[`${prefix}[gt]`] = value;
       }
       break;
 
     case "before":
       if (isDateField(field)) {
-        params[`${field}[before]`] = value;
+        params[`${prefix}[before]`] = value;
       } else {
-        params[`${field}[lt]`] = value;
+        params[`${prefix}[lt]`] = value;
       }
       break;
   }

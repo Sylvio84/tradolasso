@@ -1,9 +1,11 @@
 import { NumberField, Show, ShowButton, TextField } from "@refinedev/antd";
 import { useShow, useInvalidate } from "@refinedev/core";
-import { Typography, Table, Card, Space, Button, Modal, Form, Input, InputNumber, Select, message, DatePicker } from "antd";
-import { EditOutlined, SwapOutlined, PlusOutlined } from "@ant-design/icons";
+import { Typography, Table, Card, Space, Button, Modal, Form, Input, InputNumber, Select, DatePicker, App } from "antd";
+import { EditOutlined, SwapOutlined, PlusOutlined, DeleteOutlined, EyeOutlined } from "@ant-design/icons";
+import { Link } from "react-router";
 import { useState, useEffect } from "react";
 import { http } from "../../providers/hydra";
+import { AddToWatchlistButton } from "../../components/AddToWatchlistButton";
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -61,6 +63,7 @@ interface Asset {
 }
 
 export const WalletShow = () => {
+  const { modal, message } = App.useApp();
   const [editingLine, setEditingLine] = useState<WalletLine | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
@@ -160,7 +163,7 @@ export const WalletShow = () => {
       message.success("Ligne mise à jour");
       setIsModalOpen(false);
       setEditingLine(null);
-      invalidate({ resource: "wallets", invalidates: ["detail"] });
+      invalidate({ resource: "wallets", invalidates: ["detail"], id: record?.id });
     } catch (error) {
       message.error("Erreur lors de la mise à jour");
       console.error(error);
@@ -229,7 +232,7 @@ export const WalletShow = () => {
       setIsTransactionModalOpen(false);
       setTransactionLine(null);
       transactionForm.resetFields();
-      invalidate({ resource: "wallets", invalidates: ["detail"] });
+      invalidate({ resource: "wallets", invalidates: ["detail"], id: record.id });
     } catch (error) {
       message.error("Erreur lors de la création de la transaction");
       console.error(error);
@@ -244,12 +247,32 @@ export const WalletShow = () => {
     transactionForm.resetFields();
   };
 
+  const handleDeleteLine = (line: WalletLine) => {
+    modal.confirm({
+      title: "Supprimer la ligne",
+      content: `Êtes-vous sûr de vouloir supprimer la position ${line.asset?.symbol || ""} ? Cette action est irréversible.`,
+      okText: "Supprimer",
+      okType: "danger",
+      cancelText: "Annuler",
+      onOk: async () => {
+        try {
+          await http(`/wallet_lines/${line.id}`, {
+            method: "DELETE",
+          });
+          message.success("Ligne supprimée");
+          invalidate({ resource: "wallets", invalidates: ["detail"], id: record?.id });
+        } catch (error) {
+          message.error("Erreur lors de la suppression");
+          console.error(error);
+        }
+      },
+    });
+  };
+
   return (
     <Show isLoading={isLoading}>
       <Space direction="vertical" size="large" style={{ width: "100%" }}>
         <Card>
-          <Title level={5}>ID</Title>
-          <TextField value={record?.id} />
           <Title level={5}>Nom</Title>
           <TextField value={record?.name} />
           <Title level={5}>Broker</Title>
@@ -469,12 +492,22 @@ export const WalletShow = () => {
               render={(_, record: WalletLine) => (
                 <Space>
                   {record.asset?.id && (
-                    <ShowButton
-                      hideText
-                      size="small"
-                      resource="assets"
-                      recordItemId={record.asset.id}
-                    />
+                    <>
+                      <Link to={`/assets/show/${record.asset.id}?from=wallet:${data?.data?.id}`}>
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<EyeOutlined />}
+                          title="Voir l'asset"
+                        />
+                      </Link>
+                      <AddToWatchlistButton
+                        assetId={record.asset.id}
+                        assetSymbol={record.asset.symbol}
+                        size="small"
+                        type="text"
+                      />
+                    </>
                   )}
                   <Button
                     type="text"
@@ -488,6 +521,15 @@ export const WalletShow = () => {
                     size="small"
                     icon={<EditOutlined />}
                     onClick={() => handleEdit(record)}
+                    title="Éditer"
+                  />
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleDeleteLine(record)}
+                    title="Supprimer"
                   />
                 </Space>
               )}

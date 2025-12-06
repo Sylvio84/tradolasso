@@ -14,11 +14,21 @@ export const WalletList = () => {
   const navigate = useNavigate();
   const { tableProps } = useTable({
     syncWithLocation: true,
+    pagination: {
+      pageSize: 20,
+    },
   });
 
   return (
     <List>
-      <Table {...tableProps} rowKey="id">
+      <Table
+        {...tableProps}
+        rowKey="id"
+        pagination={{
+          ...tableProps.pagination,
+          showTotal: (total) => `${total} résultat${total > 1 ? "s" : ""}`,
+        }}
+      >
         <Table.Column dataIndex="id" title={"ID"} />
         <Table.Column dataIndex="name" title={"Name"} />
           <Table.Column dataIndex="brokerName" title={"Broker"} />

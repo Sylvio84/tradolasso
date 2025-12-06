@@ -11,6 +11,18 @@ import {
   buildQueryString
 } from "./hydra";
 
+// Map resource names to API endpoints
+const RESOURCE_ENDPOINT_MAP: Record<string, string> = {
+  funds: "assets",
+  forex: "assets",
+  crypto: "assets",
+  indexes: "assets",
+};
+
+const getEndpoint = (resource: string): string => {
+  return RESOURCE_ENDPOINT_MAP[resource] || resource;
+};
+
 export const hydraFetchDataProvider = {
   default: {
     getList: async ({ resource, filters, pagination, sorters }) => {
@@ -22,7 +34,8 @@ export const hydraFetchDataProvider = {
       params.page = pagination?.currentPage ?? pagination?.current ?? 1;
       params.itemsPerPage = pagination?.pageSize ?? 10;
 
-      const { data } = await http(`/${resource}${buildQueryString(params)}`);
+      const endpoint = getEndpoint(resource);
+      const { data } = await http(`/${endpoint}${buildQueryString(params)}`);
 
       // Extract items array from Hydra response
       const itemsArray = extractItemsFromHydraResponse(data);
@@ -39,19 +52,22 @@ export const hydraFetchDataProvider = {
     },
 
     getOne: async ({ resource, id }) => {
-      const { data } = await http(`/${resource}/${id}`);
+      const endpoint = getEndpoint(resource);
+      const { data } = await http(`/${endpoint}/${id}`);
       return { data: normalize(data) };
     },
 
     getMany: async ({ resource, ids }) => {
+      const endpoint = getEndpoint(resource);
       const results = await Promise.all(
-        ids.map((id) => http(`/${resource}/${id}`))
+        ids.map((id) => http(`/${endpoint}/${id}`))
       );
       return { data: results.map((r) => normalize(r.data)) };
     },
 
     create: async ({ resource, variables }) => {
-      const { data, headers, status } = await http(`/${resource}`, {
+      const endpoint = getEndpoint(resource);
+      const { data, headers, status } = await http(`/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/ld+json" },
         body: JSON.stringify(variables),
@@ -69,7 +85,8 @@ export const hydraFetchDataProvider = {
     },
 
     update: async ({ resource, id, variables }) => {
-      const { data } = await http(`/${resource}/${id}`, {
+      const endpoint = getEndpoint(resource);
+      const { data } = await http(`/${endpoint}/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/merge-patch+json" },
         body: JSON.stringify(variables),
@@ -78,7 +95,8 @@ export const hydraFetchDataProvider = {
     },
 
     deleteOne: async ({ resource, id }) => {
-      await http(`/${resource}/${id}`, { method: "DELETE" });
+      const endpoint = getEndpoint(resource);
+      await http(`/${endpoint}/${id}`, { method: "DELETE" });
       return { data: { id } as BaseRecord };
     },
 

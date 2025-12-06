@@ -65,6 +65,9 @@ const TRANSACTION_TYPE_LABELS: Record<string, string> = {
 export const TransactionList = () => {
   const { tableProps } = useTable<WalletTransaction>({
     syncWithLocation: true,
+    pagination: {
+      pageSize: 20,
+    },
     sorters: {
       initial: [{ field: "transactionDate", order: "desc" }],
     },
@@ -72,7 +75,14 @@ export const TransactionList = () => {
 
   return (
     <List>
-      <Table {...tableProps} rowKey="id">
+      <Table
+        {...tableProps}
+        rowKey="id"
+        pagination={{
+          ...tableProps.pagination,
+          showTotal: (total) => `${total} résultat${total > 1 ? "s" : ""}`,
+        }}
+      >
         <Table.Column dataIndex="id" title="ID" width={70} />
         <Table.Column
           dataIndex="transactionDate"

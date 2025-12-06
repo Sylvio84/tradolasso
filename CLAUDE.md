@@ -11,23 +11,19 @@ npm run build:check  # Type-check and build
 npm run start    # Start production server
 ```
 
-## API Documentation Access
-
-Always map the module to the API documentation which is served at:
-```bash
-curl http://trendlasso/api/docs.jsonopenapi
-```
-
 ## Architecture
 
 This is a Refine framework application using React 19, TypeScript, Vite, and Ant Design.
 
+Refine documentation: https://refine.dev/docs/
+
 ### Technology Stack
-- **Framework**: Refine v5 with `@refinedev/antd` UI integration
-- **UI**: Ant Design v5 with dark/light mode theming
-- **Routing**: React Router v7 via `@refinedev/react-router`
+- **Framework**: Refine v5.0.0 with `@refinedev/antd` v6.0.1 UI integration
+- **UI**: Ant Design v5.23.0 with dark/light mode theming
+- **Routing**: React Router v7.0.2 via `@refinedev/react-router` v2.0.0
 - **Data**: Custom Hydra API Platform data provider connecting to `http://trendlasso/api`
-- **Build**: Vite with React plugin
+- **Build**: Vite v6.3.5 with React plugin
+- **React**: v19.1.0
 
 ### Key Architectural Patterns
 
@@ -84,6 +80,15 @@ All dates must be displayed in French format using `DateField` from `@refinedev/
 ```
 
 ## API Endpoints
+
+API base url (local):
+http://trendlasso/api/
+
+API documentation:
+```bash
+curl http://trendlasso/api/docs.jsonopenapi
+```
+
 
 ### Wallets
 - **List**: `GET /api/wallets`
@@ -257,6 +262,36 @@ await http(`/wallet_lines/${lineId}`, {
   body: JSON.stringify(payload),
 });
 
+// DELETE request
+await http(`/wallet_lines/${lineId}`, {
+  method: "DELETE",
+});
+
 // Invalidate cache after mutation
 invalidate({ resource: "wallets", invalidates: ["detail"] });
+```
+
+### Ant Design 5 Modal and Message
+With Ant Design v5, static methods like `Modal.confirm()` and `message.success()` don't work properly when using the `<App>` component wrapper. Use `App.useApp()` hook instead:
+
+```typescript
+import { App } from "antd";
+
+export const MyComponent = () => {
+  const { modal, message } = App.useApp();
+
+  const handleDelete = () => {
+    modal.confirm({
+      title: "Supprimer",
+      content: "Êtes-vous sûr ?",
+      okText: "Supprimer",
+      okType: "danger",
+      cancelText: "Annuler",
+      onOk: async () => {
+        await http(`/resource/${id}`, { method: "DELETE" });
+        message.success("Supprimé");
+      },
+    });
+  };
+};
 ```

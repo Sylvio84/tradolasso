@@ -9,7 +9,6 @@ import { type BaseRecord, type CrudFilters } from "@refinedev/core";
 import { Button, Card, Form, InputNumber, Select, Space, Table } from "antd";
 import { ClearOutlined, SearchOutlined } from "@ant-design/icons";
 import { useEffect } from "react";
-import { AddToWatchlistButton } from "../../components/AddToWatchlistButton";
 import "flag-icons/css/flag-icons.min.css";
 
 // Country codes available in the API
@@ -55,7 +54,7 @@ const COUNTRY_OPTIONS = [
   { value: "ZA", label: "Afrique du Sud" },
 ];
 
-const STORAGE_KEY = "assetFilters";
+const STORAGE_KEY = "forexFilters";
 
 // Range filter field configuration
 interface RangeFilterConfig {
@@ -66,49 +65,21 @@ interface RangeFilterConfig {
 }
 
 const RANGE_FILTERS: RangeFilterConfig[] = [
-  { name: "marketcap", label: "Market Cap (M€)" },
   { name: "adx", label: "ADX" },
   { name: "atrPercent", label: "Volatility" },
-  { name: "lassoScore", label: "Lasso Score" },
-  { name: "visScore", label: "VIS Score" },
-  { name: "globalStars", label: "VIS Stars", min: 1, max: 5 },
-  { name: "zonebourseInvestisseur", label: "ZB Invest." },
-  { name: "fintelScore", label: "Fintel comp" },
-  { name: "zonebourseScore", label: "ZB comp" },
-  { name: "piotrosBeneishSloanScore", label: "VIS PBS" },
 ];
-
-interface ScreenerAsset {
-  id: number;
-  screener: { id: number; name: string };
-  metrics: Record<string, string>;
-}
 
 interface Indicators {
   adx?: number | null;
   atrPercent?: number | null;
 }
 
-interface Asset extends BaseRecord {
+interface Forex extends BaseRecord {
   lastPrice?: string | null;
   currency?: string | null;
-  marketcap?: string | null;
   countryCode?: string | null;
-  lassoScore?: number | null;
-  screenerAssets?: ScreenerAsset[];
   indicators?: Indicators | null;
 }
-
-// Helper to get metric value from screenerAssets
-const getMetricValue = (screenerAssets: ScreenerAsset[] | undefined, metricKey: string): string | null => {
-  if (!screenerAssets) return null;
-  for (const sa of screenerAssets) {
-    if (sa.metrics && metricKey in sa.metrics) {
-      return sa.metrics[metricKey];
-    }
-  }
-  return null;
-};
 
 // Score styles
 type ScoreStyle = React.CSSProperties;
@@ -121,31 +92,6 @@ const SCORE_STYLES = {
   neutral: {} as ScoreStyle,
 };
 
-// Helper to get score style based on thresholds
-type ScoreThresholds = {
-  highest: number;
-  higher: number;
-  lower: number;
-  lowest: number;
-};
-
-const getScoreStyle = (value: number, thresholds: ScoreThresholds): ScoreStyle => {
-  if (value >= thresholds.highest) return SCORE_STYLES.highest;
-  if (value >= thresholds.higher) return SCORE_STYLES.higher;
-  if (value <= thresholds.lowest) return SCORE_STYLES.lowest;
-  if (value <= thresholds.lower) return SCORE_STYLES.lower;
-  return SCORE_STYLES.neutral;
-};
-
-// Helper for VIS Stars (exact match)
-const getVisStarsStyle = (value: number): ScoreStyle => {
-  if (value === 5) return SCORE_STYLES.highest;
-  if (value === 4) return SCORE_STYLES.higher;
-  if (value === 2) return SCORE_STYLES.lower;
-  if (value === 1) return SCORE_STYLES.lowest;
-  return SCORE_STYLES.neutral;
-};
-
 // ADX style (uses absolute value)
 const getAdxStyle = (adx: number): ScoreStyle => {
   const absAdx = Math.abs(adx);
@@ -153,12 +99,6 @@ const getAdxStyle = (adx: number): ScoreStyle => {
   if (absAdx > 15) return adx > 0 ? SCORE_STYLES.higher : SCORE_STYLES.lower;
   return SCORE_STYLES.neutral;
 };
-
-// Threshold configurations
-const LASSO_THRESHOLDS: ScoreThresholds = { highest: 70, higher: 60, lower: 40, lowest: 30 };
-const VIS_SCORE_THRESHOLDS: ScoreThresholds = { highest: 10, higher: 7, lower: 5, lowest: 3 };
-const DEFAULT_THRESHOLDS: ScoreThresholds = { highest: 70, higher: 60, lower: 40, lowest: 30 };
-
 
 // Helper to get initial form values from sessionStorage
 const getInitialFormValues = (): Record<string, unknown> => {
@@ -182,10 +122,8 @@ const formValuesToFilters = (values: Record<string, unknown>): CrudFilters => {
     const min = values[`${name}Min`] as number | undefined;
     const max = values[`${name}Max`] as number | undefined;
     if (min != null || max != null) {
-      // For marketcap, convert from millions to actual value
-      const multiplier = name === "marketcap" ? 1000000 : 1;
-      const minVal = min != null ? min * multiplier : "";
-      const maxVal = max != null ? max * multiplier : "";
+      const minVal = min != null ? min : "";
+      const maxVal = max != null ? max : "";
       filters.push({
         field: name,
         operator: "eq",
@@ -207,7 +145,7 @@ const formValuesToFilters = (values: Record<string, unknown>): CrudFilters => {
   return filters;
 };
 
-export const AssetList = () => {
+export const ForexList = () => {
   const initialFormValues = getInitialFormValues();
   const initialFilters = formValuesToFilters(initialFormValues);
 
@@ -217,10 +155,10 @@ export const AssetList = () => {
       pageSize: 20,
     },
     sorters: {
-      initial: [{ field: "lassoScore", order: "desc" }],
+      initial: [{ field: "name", order: "asc" }],
     },
     filters: {
-      permanent: [{ field: "type", operator: "eq", value: "stock" }],
+      permanent: [{ field: "type", operator: "eq", value: "forex" }],
       initial: initialFilters.length > 0 ? initialFilters : undefined,
       defaultBehavior: "replace",
     },
@@ -328,8 +266,8 @@ export const AssetList = () => {
             }}
           >
             <Table.Column
-              title="Asset"
-              render={(_: unknown, record: Asset) => (
+              title="Forex"
+              render={(_: unknown, record: Forex) => (
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {record.countryCode && (
@@ -340,36 +278,16 @@ export const AssetList = () => {
                       />
                     )}
                     <strong>{record.symbol}</strong>
-                    {record.isin && <span style={{ color: "#888" }}> ({record.isin})</span>}
                   </div>
                   <div style={{ fontSize: "12px" }}>{record.name}</div>
                 </div>
               )}
             />
             <Table.Column
-              dataIndex="marketcap"
-              title="Market Cap"
-              sorter
-              render={(value: string | null) => {
-                if (!value) return "-";
-                const numValue = parseFloat(value);
-                if (numValue >= 1e12) {
-                  return `${(numValue / 1e12).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} T`;
-                }
-                if (numValue >= 1e9) {
-                  return `${(numValue / 1e9).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mds`;
-                }
-                if (numValue >= 1e6) {
-                  return `${(numValue / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} M`;
-                }
-                return numValue.toLocaleString("fr-FR");
-              }}
-            />
-            <Table.Column
               dataIndex="adx"
               title="ADX"
               sorter
-              render={(_: unknown, record: Asset) => {
+              render={(_: unknown, record: Forex) => {
                 const adx = record.indicators?.adx;
                 if (adx == null) return "-";
                 return <span style={getAdxStyle(adx)}>{adx.toFixed(2)}%</span>;
@@ -379,97 +297,10 @@ export const AssetList = () => {
               dataIndex="atrPercent"
               title="Volatility"
               sorter
-              render={(_: unknown, record: Asset) => {
+              render={(_: unknown, record: Forex) => {
                 const atrPercent = record.indicators?.atrPercent;
                 if (atrPercent == null) return "-";
                 return <span>{atrPercent.toFixed(2)}%</span>;
-              }}
-            />
-            <Table.Column
-              dataIndex="lassoScore"
-              title="Lasso Score"
-              sorter
-              defaultSortOrder="descend"
-              render={(_: unknown, record: Asset) => {
-                const value = getMetricValue(record.screenerAssets, "lasso.score");
-                if (value === null) return "-";
-                const numValue = parseFloat(value);
-                return <span style={getScoreStyle(numValue, LASSO_THRESHOLDS)}>{numValue.toFixed(2)}</span>;
-              }}
-            />
-            <Table.Column
-              dataIndex="visScore"
-              title="VIS Score"
-              sorter
-              render={(_: unknown, record: Asset) => {
-                const value = getMetricValue(record.screenerAssets, "VIS Score");
-                if (value === null) return "-";
-                const numValue = parseFloat(value);
-                return <span style={getScoreStyle(numValue, VIS_SCORE_THRESHOLDS)}>{numValue.toFixed(2)}</span>;
-              }}
-            />
-            <Table.Column
-              dataIndex="globalStars"
-              title="VIS Stars"
-              sorter
-              render={(_: unknown, record: Asset) => {
-                const value = getMetricValue(record.screenerAssets, "Global Stars");
-                if (value === null) return "-";
-                const numValue = parseFloat(value);
-                return <span style={getVisStarsStyle(numValue)}>{numValue}</span>;
-              }}
-            />
-            <Table.Column
-              dataIndex="zonebourseInvestisseur"
-              title="ZB Invest."
-              sorter
-              render={(_: unknown, record: Asset) => {
-                const value = getMetricValue(record.screenerAssets, "surperf_ratings.investisseur");
-                if (value === null) return "-";
-                const numValue = parseFloat(value);
-                return <span style={getScoreStyle(numValue, DEFAULT_THRESHOLDS)}>{numValue.toFixed(2)}</span>;
-              }}
-            />
-            <Table.Column
-              dataIndex="fintelScore"
-              title="Fintel comp"
-              sorter
-              render={(_: unknown, record: Asset) => {
-                const value = getMetricValue(record.screenerAssets, "metascreener.fintel-score");
-                if (value === null) return "-";
-                const numValue = parseFloat(value);
-                return <span style={getScoreStyle(numValue, DEFAULT_THRESHOLDS)}>{numValue.toFixed(2)}</span>;
-              }}
-            />
-            <Table.Column
-              dataIndex="zonebourseScore"
-              title="ZB comp"
-              sorter
-              render={(_: unknown, record: Asset) => {
-                const value = getMetricValue(record.screenerAssets, "metascreener.zonebourse-score");
-                if (value === null) return "-";
-                const numValue = parseFloat(value);
-                return <span style={getScoreStyle(numValue, DEFAULT_THRESHOLDS)}>{numValue.toFixed(2)}</span>;
-              }}
-            />
-            <Table.Column
-              title="VIS comp"
-              render={(_: unknown, record: Asset) => {
-                const value = getMetricValue(record.screenerAssets, "metascreener.vis-score");
-                if (value === null) return "-";
-                const numValue = parseFloat(value);
-                return <span style={getScoreStyle(numValue, DEFAULT_THRESHOLDS)}>{numValue.toFixed(2)}</span>;
-              }}
-            />
-            <Table.Column
-              dataIndex="piotrosBeneishSloanScore"
-              title="VIS PBS"
-              sorter
-              render={(_: unknown, record: Asset) => {
-                const value = getMetricValue(record.screenerAssets, "metascreener.piotroski-beneish-sloan-score");
-                if (value === null) return "-";
-                const numValue = parseFloat(value);
-                return <span style={getScoreStyle(numValue, DEFAULT_THRESHOLDS)}>{numValue.toFixed(2)}</span>;
               }}
             />
             <Table.Column
@@ -478,12 +309,6 @@ export const AssetList = () => {
               render={(_, record: BaseRecord) => (
                 <Space>
                   <ShowButton hideText size="small" recordItemId={record.id} />
-                  <AddToWatchlistButton
-                    assetId={Number(record.id)}
-                    assetSymbol={(record as any).symbol}
-                    size="small"
-                    type="text"
-                  />
                   <EditButton hideText size="small" recordItemId={record.id} />
                   <DeleteButton hideText size="small" recordItemId={record.id} />
                 </Space>
