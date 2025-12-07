@@ -55,6 +55,8 @@ Each resource page uses Refine's Ant Design hooks (`useTable`, `useForm`, `useSh
 
 ## Development Guidelines
 
+Always build the application after having finishing the change requested with `npm run build` to ensure type-checking and build are successful.
+
 ### API Integration
 - All API calls go through the hydraFetch data provider
 - Use Refine hooks (`useTable`, `useShow`, etc.) rather than direct API calls

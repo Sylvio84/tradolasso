@@ -24,11 +24,13 @@ import {
   InboxOutlined,
   RobotOutlined,
   UserOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router";
 import { useState, useEffect } from "react";
 import { http } from "../../providers/hydra";
 import { AddToWatchlistButton } from "../../components/AddToWatchlistButton";
+import { AssetNotesModal } from "../../components/asset-notes";
 import "flag-icons/css/flag-icons.min.css";
 
 const { Title, Text } = Typography;
@@ -114,6 +116,15 @@ export const WatchlistShow = () => {
   const [editNoteForm] = Form.useForm();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
+  const [notesModalState, setNotesModalState] = useState<{
+    open: boolean;
+    assetId: number | null;
+    assetSymbol?: string;
+    assetName?: string;
+  }>({
+    open: false,
+    assetId: null,
+  });
 
   const record = data?.data as Watchlist | undefined;
 
@@ -298,6 +309,12 @@ export const WatchlistShow = () => {
         <>
           {defaultButtons}
           <Button
+            icon={<EyeOutlined />}
+            onClick={() => navigate(`/watchlists/${record?.id}/assets`)}
+          >
+            Vue détaillée
+          </Button>
+          <Button
             icon={<PushpinOutlined />}
             onClick={handleTogglePin}
           >
@@ -461,6 +478,17 @@ export const WatchlistShow = () => {
                       Voir
                     </Button>
                   </Link>
+                  <Button
+                    size="small"
+                    icon={<FileTextOutlined />}
+                    onClick={() => setNotesModalState({
+                      open: true,
+                      assetId: asset.asset.id,
+                      assetSymbol: asset.asset.symbol,
+                      assetName: asset.asset.name,
+                    })}
+                    title="Notes"
+                  />
                   <AddToWatchlistButton
                     assetId={asset.asset.id}
                     assetSymbol={asset.asset.symbol}
@@ -562,6 +590,17 @@ export const WatchlistShow = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Asset Notes Modal */}
+      {notesModalState.assetId && (
+        <AssetNotesModal
+          assetId={notesModalState.assetId}
+          assetSymbol={notesModalState.assetSymbol}
+          assetName={notesModalState.assetName}
+          open={notesModalState.open}
+          onClose={() => setNotesModalState({ open: false, assetId: null })}
+        />
+      )}
     </Show>
   );
 };

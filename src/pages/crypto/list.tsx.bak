@@ -5,14 +5,56 @@ import {
   ShowButton,
   useTable,
 } from "@refinedev/antd";
-import { type BaseRecord, type CrudFilters } from "@refinedev/core";
-import { Space, Table } from "antd";
+import { type BaseRecord, type CrudFilters, useList } from "@refinedev/core";
+import { Button, Card, Form, InputNumber, Select, Space, Table } from "antd";
+import { ClearOutlined, SearchOutlined } from "@ant-design/icons";
 import { useEffect } from "react";
-import { useLocation } from "react-router";
-import { useFilterContext } from "../../contexts/filter-context";
 import "flag-icons/css/flag-icons.min.css";
 
-const STORAGE_KEY = "fundFilters";
+// Country codes available in the API
+const COUNTRY_OPTIONS = [
+  { value: "AE", label: "Émirats arabes unis" },
+  { value: "AT", label: "Autriche" },
+  { value: "AU", label: "Australie" },
+  { value: "BE", label: "Belgique" },
+  { value: "BR", label: "Brésil" },
+  { value: "CA", label: "Canada" },
+  { value: "CH", label: "Suisse" },
+  { value: "CN", label: "Chine" },
+  { value: "DE", label: "Allemagne" },
+  { value: "DK", label: "Danemark" },
+  { value: "ES", label: "Espagne" },
+  { value: "FI", label: "Finlande" },
+  { value: "FR", label: "France" },
+  { value: "GB", label: "Royaume-Uni" },
+  { value: "GR", label: "Grèce" },
+  { value: "HK", label: "Hong Kong" },
+  { value: "HU", label: "Hongrie" },
+  { value: "ID", label: "Indonésie" },
+  { value: "IE", label: "Irlande" },
+  { value: "IL", label: "Israël" },
+  { value: "IN", label: "Inde" },
+  { value: "IT", label: "Italie" },
+  { value: "JP", label: "Japon" },
+  { value: "KR", label: "Corée du Sud" },
+  { value: "LU", label: "Luxembourg" },
+  { value: "MX", label: "Mexique" },
+  { value: "MY", label: "Malaisie" },
+  { value: "NL", label: "Pays-Bas" },
+  { value: "NO", label: "Norvège" },
+  { value: "PL", label: "Pologne" },
+  { value: "PT", label: "Portugal" },
+  { value: "SE", label: "Suède" },
+  { value: "SG", label: "Singapour" },
+  { value: "TH", label: "Thaïlande" },
+  { value: "TR", label: "Turquie" },
+  { value: "TW", label: "Taïwan" },
+  { value: "US", label: "États-Unis" },
+  { value: "VN", label: "Vietnam" },
+  { value: "ZA", label: "Afrique du Sud" },
+];
+
+const STORAGE_KEY = "cryptoFilters";
 
 // Range filter field configuration
 interface RangeFilterConfig {
@@ -33,7 +75,7 @@ interface Indicators {
   atrPercent?: number | null;
 }
 
-interface Fund extends BaseRecord {
+interface Crypto extends BaseRecord {
   lastPrice?: string | null;
   currency?: string | null;
   marketcap?: string | null;
@@ -117,11 +159,21 @@ const formValuesToFilters = (values: Record<string, unknown>): CrudFilters => {
   return filters;
 };
 
-export const FundList = () => {
-  const location = useLocation();
-  const { registerFilter, unregisterFilter } = useFilterContext();
+export const CryptoList = () => {
   const initialFormValues = getInitialFormValues();
   const initialFilters = formValuesToFilters(initialFormValues);
+
+  // Load watchlists
+  const { result: watchlistsData } = useList({
+    resource: "watchlists",
+    filters: [{ field: "assetType", operator: "eq", value: "crypto" }],
+    pagination: { mode: "off" },
+  });
+
+  const watchlistOptions = watchlistsData?.data?.map((w) => ({
+    value: w.id,
+    label: w.name,
+  })) || [];
 
   const { tableProps, searchFormProps } = useTable({
     syncWithLocation: true,
@@ -132,7 +184,7 @@ export const FundList = () => {
       initial: [{ field: "name", order: "asc" }],
     },
     filters: {
-      permanent: [{ field: "type", operator: "eq", value: "fund" }],
+      permanent: [{ field: "type", operator: "eq", value: "crypto" }],
       initial: initialFilters.length > 0 ? initialFilters : undefined,
       defaultBehavior: "replace",
     },
@@ -151,22 +203,100 @@ export const FundList = () => {
     }
   }, [searchFormProps.form]);
 
-  // Callback for filter reset
-  const handleReset = () => {
-    sessionStorage.removeItem(STORAGE_KEY);
-    searchFormProps.form?.resetFields();
-    searchFormProps.form?.submit();
-  };
-
-  // Register filter with context
-  useEffect(() => {
-    registerFilter(location.pathname, searchFormProps, handleReset);
-    return () => unregisterFilter(location.pathname);
-  }, [location.pathname, searchFormProps, registerFilter, unregisterFilter, handleReset]);
-
   return (
     <List>
-      <Table
+      <div style={{ display: "flex", gap: 16 }}>
+        {/* Sidebar Filters */}
+        <Card
+          title="Filtres"
+          size="small"
+          style={{ width: 260, flexShrink: 0, height: "fit-content" }}
+          extra={
+            <Button
+              size="small"
+              icon={<ClearOutlined />}
+              onClick={() => {
+                sessionStorage.removeItem(STORAGE_KEY);
+                searchFormProps.form?.resetFields();
+                searchFormProps.form?.submit();
+              }}
+            >
+              Reset
+            </Button>
+          }
+        >
+          <Form
+            {...searchFormProps}
+            layout="vertical"
+            size="small"
+          >
+            <Form.Item label="Watchlist">
+              <Form.Item name="watchlist" noStyle>
+                <Select
+                  mode="multiple"
+                  allowClear
+                  placeholder="Toutes les watchlists"
+                  options={watchlistOptions}
+                  optionFilterProp="label"
+                  style={{ width: "100%" }}
+                  maxTagCount={1}
+                />
+              </Form.Item>
+            </Form.Item>
+
+            <Form.Item label="Pays">
+              <Form.Item name="countryCode" noStyle>
+                <Select
+                  mode="multiple"
+                  allowClear
+                  placeholder="Tous les pays"
+                  options={COUNTRY_OPTIONS}
+                  optionFilterProp="label"
+                  style={{ width: "100%" }}
+                  maxTagCount={2}
+                />
+              </Form.Item>
+            </Form.Item>
+
+            {RANGE_FILTERS.map(({ name, label, min, max }) => (
+              <Form.Item key={name} label={label}>
+                <Space.Compact style={{ width: "100%" }}>
+                  <Form.Item name={`${name}Min`} noStyle>
+                    <InputNumber
+                      placeholder="Min"
+                      min={min}
+                      max={max}
+                      style={{ width: "50%" }}
+                    />
+                  </Form.Item>
+                  <Form.Item name={`${name}Max`} noStyle>
+                    <InputNumber
+                      placeholder="Max"
+                      min={min}
+                      max={max}
+                      style={{ width: "50%" }}
+                    />
+                  </Form.Item>
+                </Space.Compact>
+              </Form.Item>
+            ))}
+
+            <Form.Item style={{ marginBottom: 0, marginTop: 16 }}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                icon={<SearchOutlined />}
+                block
+              >
+                Appliquer
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+
+        {/* Table */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Table
             {...tableProps}
             rowKey="id"
             scroll={{ x: "max-content" }}
@@ -176,8 +306,8 @@ export const FundList = () => {
             }}
           >
             <Table.Column
-              title="Fund"
-              render={(_: unknown, record: Fund) => (
+              title="Crypto"
+              render={(_: unknown, record: Crypto) => (
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {record.countryCode && (
@@ -188,7 +318,6 @@ export const FundList = () => {
                       />
                     )}
                     <strong>{record.symbol}</strong>
-                    {record.isin && <span style={{ color: "#888" }}> ({record.isin})</span>}
                   </div>
                   <div style={{ fontSize: "12px" }}>{record.name}</div>
                 </div>
@@ -217,7 +346,7 @@ export const FundList = () => {
               dataIndex="adx"
               title="ADX"
               sorter
-              render={(_: unknown, record: Fund) => {
+              render={(_: unknown, record: Crypto) => {
                 const adx = record.indicators?.adx;
                 if (adx == null) return "-";
                 return <span style={getAdxStyle(adx)}>{adx.toFixed(2)}%</span>;
@@ -227,7 +356,7 @@ export const FundList = () => {
               dataIndex="atrPercent"
               title="Volatility"
               sorter
-              render={(_: unknown, record: Fund) => {
+              render={(_: unknown, record: Crypto) => {
                 const atrPercent = record.indicators?.atrPercent;
                 if (atrPercent == null) return "-";
                 return <span>{atrPercent.toFixed(2)}%</span>;
@@ -244,7 +373,9 @@ export const FundList = () => {
                 </Space>
               )}
             />
-      </Table>
+          </Table>
+        </div>
+      </div>
     </List>
   );
 };

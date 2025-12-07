@@ -12,7 +12,7 @@ import { useLocation } from "react-router";
 import { useFilterContext } from "../../contexts/filter-context";
 import "flag-icons/css/flag-icons.min.css";
 
-const STORAGE_KEY = "fundFilters";
+const STORAGE_KEY = "indexFilters";
 
 // Range filter field configuration
 interface RangeFilterConfig {
@@ -23,7 +23,6 @@ interface RangeFilterConfig {
 }
 
 const RANGE_FILTERS: RangeFilterConfig[] = [
-  { name: "marketcap", label: "Market Cap (M€)" },
   { name: "adx", label: "ADX" },
   { name: "atrPercent", label: "Volatility" },
 ];
@@ -33,10 +32,9 @@ interface Indicators {
   atrPercent?: number | null;
 }
 
-interface Fund extends BaseRecord {
+interface Index extends BaseRecord {
   lastPrice?: string | null;
   currency?: string | null;
-  marketcap?: string | null;
   countryCode?: string | null;
   indicators?: Indicators | null;
 }
@@ -82,10 +80,8 @@ const formValuesToFilters = (values: Record<string, unknown>): CrudFilters => {
     const min = values[`${name}Min`] as number | undefined;
     const max = values[`${name}Max`] as number | undefined;
     if (min != null || max != null) {
-      // For marketcap, convert from millions to actual value
-      const multiplier = name === "marketcap" ? 1000000 : 1;
-      const minVal = min != null ? min * multiplier : "";
-      const maxVal = max != null ? max * multiplier : "";
+      const minVal = min != null ? min : "";
+      const maxVal = max != null ? max : "";
       filters.push({
         field: name,
         operator: "eq",
@@ -117,7 +113,7 @@ const formValuesToFilters = (values: Record<string, unknown>): CrudFilters => {
   return filters;
 };
 
-export const FundList = () => {
+export const IndexList = () => {
   const location = useLocation();
   const { registerFilter, unregisterFilter } = useFilterContext();
   const initialFormValues = getInitialFormValues();
@@ -132,7 +128,7 @@ export const FundList = () => {
       initial: [{ field: "name", order: "asc" }],
     },
     filters: {
-      permanent: [{ field: "type", operator: "eq", value: "fund" }],
+      permanent: [{ field: "type", operator: "eq", value: "index" }],
       initial: initialFilters.length > 0 ? initialFilters : undefined,
       defaultBehavior: "replace",
     },
@@ -167,6 +163,95 @@ export const FundList = () => {
   return (
     <List>
       <Table
+          title="Filtres"
+          size="small"
+          style={{ width: 260, flexShrink: 0, height: "fit-content" }}
+          extra={
+            <Button
+              size="small"
+              icon={<ClearOutlined />}
+              onClick={() => {
+                sessionStorage.removeItem(STORAGE_KEY);
+                searchFormProps.form?.resetFields();
+                searchFormProps.form?.submit();
+              }}
+            >
+              Reset
+            </Button>
+          }
+        >
+          <Form
+            {...searchFormProps}
+            layout="vertical"
+            size="small"
+          >
+            <Form.Item label="Watchlist">
+              <Form.Item name="watchlist" noStyle>
+                <Select
+                  mode="multiple"
+                  allowClear
+                  placeholder="Toutes les watchlists"
+                  options={watchlistOptions}
+                  optionFilterProp="label"
+                  style={{ width: "100%" }}
+                  maxTagCount={1}
+                />
+              </Form.Item>
+            </Form.Item>
+
+            <Form.Item label="Pays">
+              <Form.Item name="countryCode" noStyle>
+                <Select
+                  mode="multiple"
+                  allowClear
+                  placeholder="Tous les pays"
+                  options={COUNTRY_OPTIONS}
+                  optionFilterProp="label"
+                  style={{ width: "100%" }}
+                  maxTagCount={2}
+                />
+              </Form.Item>
+            </Form.Item>
+
+            {RANGE_FILTERS.map(({ name, label, min, max }) => (
+              <Form.Item key={name} label={label}>
+                <Space.Compact style={{ width: "100%" }}>
+                  <Form.Item name={`${name}Min`} noStyle>
+                    <InputNumber
+                      placeholder="Min"
+                      min={min}
+                      max={max}
+                      style={{ width: "50%" }}
+                    />
+                  </Form.Item>
+                  <Form.Item name={`${name}Max`} noStyle>
+                    <InputNumber
+                      placeholder="Max"
+                      min={min}
+                      max={max}
+                      style={{ width: "50%" }}
+                    />
+                  </Form.Item>
+                </Space.Compact>
+              </Form.Item>
+            ))}
+
+            <Form.Item style={{ marginBottom: 0, marginTop: 16 }}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                icon={<SearchOutlined />}
+                block
+              >
+                Appliquer
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+
+        {/* Table */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Table
             {...tableProps}
             rowKey="id"
             scroll={{ x: "max-content" }}
@@ -176,8 +261,8 @@ export const FundList = () => {
             }}
           >
             <Table.Column
-              title="Fund"
-              render={(_: unknown, record: Fund) => (
+              title="Index"
+              render={(_: unknown, record: Index) => (
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {record.countryCode && (
@@ -188,36 +273,16 @@ export const FundList = () => {
                       />
                     )}
                     <strong>{record.symbol}</strong>
-                    {record.isin && <span style={{ color: "#888" }}> ({record.isin})</span>}
                   </div>
                   <div style={{ fontSize: "12px" }}>{record.name}</div>
                 </div>
               )}
             />
             <Table.Column
-              dataIndex="marketcap"
-              title="Market Cap"
-              sorter
-              render={(value: string | null) => {
-                if (!value) return "-";
-                const numValue = parseFloat(value);
-                if (numValue >= 1e12) {
-                  return `${(numValue / 1e12).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} T`;
-                }
-                if (numValue >= 1e9) {
-                  return `${(numValue / 1e9).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mds`;
-                }
-                if (numValue >= 1e6) {
-                  return `${(numValue / 1e6).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} M`;
-                }
-                return numValue.toLocaleString("fr-FR");
-              }}
-            />
-            <Table.Column
               dataIndex="adx"
               title="ADX"
               sorter
-              render={(_: unknown, record: Fund) => {
+              render={(_: unknown, record: Index) => {
                 const adx = record.indicators?.adx;
                 if (adx == null) return "-";
                 return <span style={getAdxStyle(adx)}>{adx.toFixed(2)}%</span>;
@@ -227,7 +292,7 @@ export const FundList = () => {
               dataIndex="atrPercent"
               title="Volatility"
               sorter
-              render={(_: unknown, record: Fund) => {
+              render={(_: unknown, record: Index) => {
                 const atrPercent = record.indicators?.atrPercent;
                 if (atrPercent == null) return "-";
                 return <span>{atrPercent.toFixed(2)}%</span>;

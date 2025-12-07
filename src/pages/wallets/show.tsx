@@ -1,11 +1,12 @@
 import { NumberField, Show, ShowButton, TextField } from "@refinedev/antd";
 import { useShow, useInvalidate } from "@refinedev/core";
 import { Typography, Table, Card, Space, Button, Modal, Form, Input, InputNumber, Select, DatePicker, App } from "antd";
-import { EditOutlined, SwapOutlined, PlusOutlined, DeleteOutlined, EyeOutlined } from "@ant-design/icons";
+import { EditOutlined, SwapOutlined, PlusOutlined, DeleteOutlined, EyeOutlined, FileTextOutlined } from "@ant-design/icons";
 import { Link } from "react-router";
 import { useState, useEffect } from "react";
 import { http } from "../../providers/hydra";
 import { AddToWatchlistButton } from "../../components/AddToWatchlistButton";
+import { AssetNotesModal } from "../../components/asset-notes";
 
 const { Title } = Typography;
 const { TextArea } = Input;
@@ -77,6 +78,15 @@ export const WalletShow = () => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
   const invalidate = useInvalidate();
+  const [notesModalState, setNotesModalState] = useState<{
+    open: boolean;
+    assetId: number | null;
+    assetSymbol?: string;
+    assetName?: string;
+  }>({
+    open: false,
+    assetId: null,
+  });
 
   const {
     query: { data, isLoading },
@@ -501,6 +511,18 @@ export const WalletShow = () => {
                           title="Voir l'asset"
                         />
                       </Link>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<FileTextOutlined />}
+                        onClick={() => setNotesModalState({
+                          open: true,
+                          assetId: record.asset!.id,
+                          assetSymbol: record.asset!.symbol,
+                          assetName: record.asset!.name,
+                        })}
+                        title="Notes"
+                      />
                       <AddToWatchlistButton
                         assetId={record.asset.id}
                         assetSymbol={record.asset.symbol}
@@ -672,6 +694,17 @@ export const WalletShow = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Asset Notes Modal */}
+      {notesModalState.assetId && (
+        <AssetNotesModal
+          assetId={notesModalState.assetId}
+          assetSymbol={notesModalState.assetSymbol}
+          assetName={notesModalState.assetName}
+          open={notesModalState.open}
+          onClose={() => setNotesModalState({ open: false, assetId: null })}
+        />
+      )}
     </Show>
   );
 };

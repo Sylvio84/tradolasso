@@ -5,11 +5,9 @@ import { RefineKbar, RefineKbarProvider } from "@refinedev/kbar";
 import {
   ErrorComponent,
   ThemedLayout,
-  ThemedSider,
-  ThemedTitle,
   useNotificationProvider,
 } from "@refinedev/antd";
-import { WalletOutlined, FundOutlined, SwapOutlined, PieChartOutlined, DollarOutlined, ThunderboltOutlined, LineChartOutlined, StarOutlined } from "@ant-design/icons";
+import { WalletOutlined, FundOutlined, SwapOutlined, PieChartOutlined, DollarOutlined, ThunderboltOutlined, LineChartOutlined, StarOutlined, FileTextOutlined } from "@ant-design/icons";
 import "@refinedev/antd/dist/reset.css";
 
 import routerProvider, {
@@ -19,10 +17,12 @@ import routerProvider, {
 } from "@refinedev/react-router";
 //import dataProvider from "@refinedev/simple-rest";
 import {hydraFetchDataProvider} from "./providers/hydraFetch";
-import { App as AntdApp } from "antd";
+import { App as AntdApp, Layout } from "antd";
 import { BrowserRouter, Outlet, Route, Routes } from "react-router";
 import { Header } from "./components/header";
 import { ColorModeContextProvider } from "./contexts/color-mode";
+import { FilterContextProvider } from "./contexts/filter-context";
+import { FilterSider } from "./components/layout/FilterSider";
 import {
   WalletCreate,
   WalletEdit,
@@ -70,7 +70,14 @@ import {
   WatchlistEdit,
   WatchlistList,
   WatchlistShow,
+  WatchlistAssets,
 } from "./pages/watchlists";
+import {
+  AssetNoteCreate,
+  AssetNoteEdit,
+  AssetNoteList,
+  AssetNoteShow,
+} from "./pages/asset-notes";
 
 function App() {
   return (
@@ -79,7 +86,8 @@ function App() {
         <ColorModeContextProvider>
           <AntdApp>
             <DevtoolsProvider>
-              <Refine
+              <FilterContextProvider>
+                <Refine
                 // @ts-ignore
                 dataProvider={hydraFetchDataProvider}
                 notificationProvider={useNotificationProvider}
@@ -180,6 +188,18 @@ function App() {
                       canDelete: true,
                     },
                   },
+                  {
+                    name: "asset_notes",
+                    list: "/asset-notes",
+                    create: "/asset-notes/create",
+                    edit: "/asset-notes/edit/:id",
+                    show: "/asset-notes/show/:id",
+                    meta: {
+                      icon: <FileTextOutlined />,
+                      label: "Notes",
+                      canDelete: true,
+                    },
+                  },
                 ]}
                 options={{
                   syncWithLocation: true,
@@ -190,23 +210,14 @@ function App() {
                 <Routes>
                   <Route
                     element={
-                      <ThemedLayout
-                        Header={() => <Header sticky />}
-                        Sider={(props) => (
-                          <ThemedSider
-                            {...props}
-                            fixed
-                            Title={({ collapsed }) => (
-                              <ThemedTitle
-                                collapsed={collapsed}
-                                text="TradoLasso"
-                              />
-                            )}
-                          />
-                        )}
-                      >
-                        <Outlet />
-                      </ThemedLayout>
+                      <Layout style={{ minHeight: "100vh" }}>
+                        <Header />
+                        <ThemedLayout
+                          Sider={() => <FilterSider />}
+                        >
+                          <Outlet />
+                        </ThemedLayout>
+                      </Layout>
                     }
                   >
                     <Route
@@ -260,6 +271,13 @@ function App() {
                       <Route path="create" element={<WatchlistCreate />} />
                       <Route path="edit/:id" element={<WatchlistEdit />} />
                       <Route path="show/:id" element={<WatchlistShow />} />
+                      <Route path=":id/assets" element={<WatchlistAssets />} />
+                    </Route>
+                    <Route path="/asset-notes">
+                      <Route index element={<AssetNoteList />} />
+                      <Route path="create" element={<AssetNoteCreate />} />
+                      <Route path="edit/:id" element={<AssetNoteEdit />} />
+                      <Route path="show/:id" element={<AssetNoteShow />} />
                     </Route>
                     <Route path="*" element={<ErrorComponent />} />
                   </Route>
@@ -269,6 +287,7 @@ function App() {
                 <UnsavedChangesNotifier />
                 <DocumentTitleHandler />
               </Refine>
+              </FilterContextProvider>
               <DevtoolsPanel />
             </DevtoolsProvider>
           </AntdApp>

@@ -166,6 +166,17 @@ const mapFilterOperator = (field: string, operator: string, value: any, params: 
         } else {
           params[`${prefix}[]`] = [value];
         }
+      } else if (field === 'watchlist') {
+        // For watchlist: single value uses watchlist=1, multiple values use watchlist[]=1&watchlist[]=2
+        if (Array.isArray(value)) {
+          if (value.length === 1) {
+            params[prefix] = value[0];
+          } else {
+            params[`${prefix}[]`] = value;
+          }
+        } else {
+          params[prefix] = value;
+        }
       } else {
         params[`${prefix}[]`] = Array.isArray(value) ? value : [value];
       }

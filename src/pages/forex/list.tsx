@@ -6,9 +6,10 @@ import {
   useTable,
 } from "@refinedev/antd";
 import { type BaseRecord, type CrudFilters } from "@refinedev/core";
-import { Button, Card, Form, InputNumber, Select, Space, Table } from "antd";
-import { ClearOutlined, SearchOutlined } from "@ant-design/icons";
+import { Space, Table } from "antd";
 import { useEffect } from "react";
+import { useLocation } from "react-router";
+import { useFilterContext } from "../../contexts/filter-context";
 import "flag-icons/css/flag-icons.min.css";
 
 // Country codes available in the API
@@ -146,6 +147,8 @@ const formValuesToFilters = (values: Record<string, unknown>): CrudFilters => {
 };
 
 export const ForexList = () => {
+  const location = useLocation();
+  const { registerFilter, unregisterFilter } = useFilterContext();
   const initialFormValues = getInitialFormValues();
   const initialFilters = formValuesToFilters(initialFormValues);
 
@@ -177,86 +180,22 @@ export const ForexList = () => {
     }
   }, [searchFormProps.form]);
 
+  // Callback for filter reset
+  const handleReset = () => {
+    sessionStorage.removeItem(STORAGE_KEY);
+    searchFormProps.form?.resetFields();
+    searchFormProps.form?.submit();
+  };
+
+  // Register filter with context
+  useEffect(() => {
+    registerFilter(location.pathname, searchFormProps, handleReset);
+    return () => unregisterFilter(location.pathname);
+  }, [location.pathname, searchFormProps, registerFilter, unregisterFilter, handleReset]);
+
   return (
     <List>
-      <div style={{ display: "flex", gap: 16 }}>
-        {/* Sidebar Filters */}
-        <Card
-          title="Filtres"
-          size="small"
-          style={{ width: 260, flexShrink: 0, height: "fit-content" }}
-          extra={
-            <Button
-              size="small"
-              icon={<ClearOutlined />}
-              onClick={() => {
-                sessionStorage.removeItem(STORAGE_KEY);
-                searchFormProps.form?.resetFields();
-                searchFormProps.form?.submit();
-              }}
-            >
-              Reset
-            </Button>
-          }
-        >
-          <Form
-            {...searchFormProps}
-            layout="vertical"
-            size="small"
-          >
-            <Form.Item label="Pays">
-              <Form.Item name="countryCode" noStyle>
-                <Select
-                  mode="multiple"
-                  allowClear
-                  placeholder="Tous les pays"
-                  options={COUNTRY_OPTIONS}
-                  optionFilterProp="label"
-                  style={{ width: "100%" }}
-                  maxTagCount={2}
-                />
-              </Form.Item>
-            </Form.Item>
-
-            {RANGE_FILTERS.map(({ name, label, min, max }) => (
-              <Form.Item key={name} label={label}>
-                <Space.Compact style={{ width: "100%" }}>
-                  <Form.Item name={`${name}Min`} noStyle>
-                    <InputNumber
-                      placeholder="Min"
-                      min={min}
-                      max={max}
-                      style={{ width: "50%" }}
-                    />
-                  </Form.Item>
-                  <Form.Item name={`${name}Max`} noStyle>
-                    <InputNumber
-                      placeholder="Max"
-                      min={min}
-                      max={max}
-                      style={{ width: "50%" }}
-                    />
-                  </Form.Item>
-                </Space.Compact>
-              </Form.Item>
-            ))}
-
-            <Form.Item style={{ marginBottom: 0, marginTop: 16 }}>
-              <Button
-                type="primary"
-                htmlType="submit"
-                icon={<SearchOutlined />}
-                block
-              >
-                Appliquer
-              </Button>
-            </Form.Item>
-          </Form>
-        </Card>
-
-        {/* Table */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <Table
+      <Table
             {...tableProps}
             rowKey="id"
             scroll={{ x: "max-content" }}
@@ -314,9 +253,7 @@ export const ForexList = () => {
                 </Space>
               )}
             />
-          </Table>
-        </div>
-      </div>
+      </Table>
     </List>
   );
 };

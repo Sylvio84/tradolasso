@@ -6,12 +6,17 @@ import {
   useTable,
 } from "@refinedev/antd";
 import { type BaseRecord, type CrudFilters } from "@refinedev/core";
-import { Button, Card, Form, Select, Space, Table, Tag, Badge, Typography, Switch } from "antd";
-import { ClearOutlined, SearchOutlined, RobotOutlined, UserOutlined } from "@ant-design/icons";
+import { Space, Table, Tag, Badge, Typography } from "antd";
+import { RobotOutlined, UserOutlined } from "@ant-design/icons";
+import { useEffect } from "react";
+import { useLocation } from "react-router";
+import { useFilterContext } from "../../contexts/filter-context";
 
 const { Text } = Typography;
 
-// Asset type options
+const STORAGE_KEY = "watchlistFilters";
+
+// Asset type options for table display
 const ASSET_TYPE_OPTIONS = [
   { value: "stock", label: "Actions", color: "blue" },
   { value: "fund", label: "Fonds", color: "green" },
@@ -23,14 +28,12 @@ const ASSET_TYPE_OPTIONS = [
   { value: "cash_account", label: "Comptes de trésorerie", color: "default" },
 ];
 
-// Status options
+// Status options for table display
 const STATUS_OPTIONS = [
   { value: "pinned", label: "Épinglée", badge: "gold" },
   { value: "normal", label: "Normale", badge: "default" },
   { value: "archived", label: "Archivée", badge: "default" },
 ];
-
-const STORAGE_KEY = "watchlistFilters";
 
 interface Watchlist extends BaseRecord {
   id: number;
@@ -65,6 +68,7 @@ const formValuesToFilters = (values: Record<string, unknown>): CrudFilters => {
   return filters;
 };
 
+// Helper to get initial form values from sessionStorage
 const getInitialFormValues = (): Record<string, unknown> => {
   try {
     const saved = sessionStorage.getItem(STORAGE_KEY);
@@ -78,10 +82,19 @@ const getInitialFormValues = (): Record<string, unknown> => {
 };
 
 export const WatchlistList = () => {
+  const location = useLocation();
+  const { registerFilter, unregisterFilter } = useFilterContext();
+  const initialFormValues = getInitialFormValues();
+  const initialFilters = formValuesToFilters(initialFormValues);
+
   const { tableProps, searchFormProps } = useTable({
     syncWithLocation: true,
     sorters: {
       initial: [{ field: "position", order: "asc" }],
+    },
+    filters: {
+      initial: initialFilters.length > 0 ? initialFilters : undefined,
+      defaultBehavior: "replace",
     },
     onSearch: (values: Record<string, unknown>) => {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(values));
@@ -89,150 +102,104 @@ export const WatchlistList = () => {
     },
   });
 
+  // Set initial form values from sessionStorage on mount
+  useEffect(() => {
+    const saved = getInitialFormValues();
+    if (Object.keys(saved).length > 0) {
+      searchFormProps.form?.setFieldsValue(saved);
+    }
+  }, [searchFormProps.form]);
+
+  // Callback for filter reset
+  const handleReset = () => {
+    sessionStorage.removeItem(STORAGE_KEY);
+    searchFormProps.form?.resetFields();
+    searchFormProps.form?.submit();
+  };
+
+  // Register filter with context
+  useEffect(() => {
+    registerFilter(location.pathname, searchFormProps, handleReset);
+    return () => unregisterFilter(location.pathname);
+  }, [location.pathname, searchFormProps, registerFilter, unregisterFilter, handleReset]);
+
   return (
     <List>
-      <div style={{ display: "flex", gap: 16 }}>
-        {/* Sidebar filters */}
-        <Card
-          title="Filtres"
-          style={{ width: 300, flexShrink: 0 }}
-          size="small"
-        >
-          <Form
-            {...searchFormProps}
-            layout="vertical"
-            initialValues={getInitialFormValues()}
-          >
-            <Form.Item name="status" label="Statut">
-              <Select
-                allowClear
-                placeholder="Tous les statuts"
-                options={STATUS_OPTIONS.map(opt => ({
-                  value: opt.value,
-                  label: opt.label,
-                }))}
-              />
-            </Form.Item>
-
-            <Form.Item name="assetType" label="Type d'actifs">
-              <Select
-                allowClear
-                placeholder="Tous les types"
-                options={ASSET_TYPE_OPTIONS.map(opt => ({
-                  value: opt.value,
-                  label: opt.label,
-                }))}
-              />
-            </Form.Item>
-
-            <Form.Item name="isAutomatic" label="Type de watchlist" valuePropName="checked">
-              <Switch
-                checkedChildren="Automatique"
-                unCheckedChildren="Manuelle"
-              />
-            </Form.Item>
-
+      <Table {...tableProps} rowKey="id">
+        <Table.Column
+          title="Nom"
+          dataIndex="name"
+          render={(_, record: Watchlist) => (
             <Space>
-              <Button
-                htmlType="submit"
-                type="primary"
-                icon={<SearchOutlined />}
-              >
-                Filtrer
-              </Button>
-              <Button
-                icon={<ClearOutlined />}
-                onClick={() => {
-                  searchFormProps.form?.resetFields();
-                  sessionStorage.removeItem(STORAGE_KEY);
-                  searchFormProps.form?.submit();
-                }}
-              >
-                Réinitialiser
-              </Button>
+              {record.color && (
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor: record.color,
+                  }}
+                />
+              )}
+              <strong>{record.name}</strong>
             </Space>
-          </Form>
-        </Card>
+          )}
+        />
 
-        {/* Main table */}
-        <div style={{ flex: 1 }}>
-          <Table {...tableProps} rowKey="id">
-            <Table.Column
-              title="Nom"
-              dataIndex="name"
-              render={(_, record: Watchlist) => (
-                <Space>
-                  {record.color && (
-                    <div
-                      style={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: "50%",
-                        backgroundColor: record.color,
-                      }}
-                    />
-                  )}
-                  <strong>{record.name}</strong>
-                </Space>
+        <Table.Column
+          title="Type"
+          render={(_, record: Watchlist) => (
+            <Tag color={record.isAutomatic ? "green" : "blue"}>
+              {record.isAutomatic ? (
+                <>
+                  <RobotOutlined /> Automatique
+                </>
+              ) : (
+                <>
+                  <UserOutlined /> Manuelle
+                </>
               )}
-            />
+            </Tag>
+          )}
+        />
 
-            <Table.Column
-              title="Type"
-              render={(_, record: Watchlist) => (
-                <Tag color={record.isAutomatic ? "green" : "blue"}>
-                  {record.isAutomatic ? (
-                    <>
-                      <RobotOutlined /> Automatique
-                    </>
-                  ) : (
-                    <>
-                      <UserOutlined /> Manuelle
-                    </>
-                  )}
-                </Tag>
-              )}
-            />
+        <Table.Column
+          title="Type d'actifs"
+          dataIndex="assetType"
+          render={(value) => {
+            if (!value) return <Text type="secondary">Tous</Text>;
+            const option = ASSET_TYPE_OPTIONS.find((o) => o.value === value);
+            return <Tag color={option?.color}>{option?.label}</Tag>;
+          }}
+        />
 
-            <Table.Column
-              title="Type d'actifs"
-              dataIndex="assetType"
-              render={(value) => {
-                if (!value) return <Text type="secondary">Tous</Text>;
-                const option = ASSET_TYPE_OPTIONS.find((o) => o.value === value);
-                return <Tag color={option?.color}>{option?.label}</Tag>;
-              }}
-            />
+        <Table.Column
+          title="Nombre d'actifs"
+          dataIndex="assetCount"
+          align="right"
+        />
 
-            <Table.Column
-              title="Nombre d'actifs"
-              dataIndex="assetCount"
-              align="right"
-            />
+        <Table.Column
+          title="Statut"
+          dataIndex="status"
+          render={(value) => {
+            const option = STATUS_OPTIONS.find((o) => o.value === value);
+            return <Badge status={option?.badge as any} text={option?.label} />;
+          }}
+        />
 
-            <Table.Column
-              title="Statut"
-              dataIndex="status"
-              render={(value) => {
-                const option = STATUS_OPTIONS.find((o) => o.value === value);
-                return <Badge status={option?.badge as any} text={option?.label} />;
-              }}
-            />
-
-            <Table.Column
-              title="Actions"
-              dataIndex="actions"
-              render={(_, record: Watchlist) => (
-                <Space>
-                  <ShowButton hideText size="small" recordItemId={record.id} />
-                  <EditButton hideText size="small" recordItemId={record.id} />
-                  <DeleteButton hideText size="small" recordItemId={record.id} />
-                </Space>
-              )}
-            />
-          </Table>
-        </div>
-      </div>
+        <Table.Column
+          title="Actions"
+          dataIndex="actions"
+          render={(_, record: Watchlist) => (
+            <Space>
+              <ShowButton hideText size="small" recordItemId={record.id} />
+              <EditButton hideText size="small" recordItemId={record.id} />
+              <DeleteButton hideText size="small" recordItemId={record.id} />
+            </Space>
+          )}
+        />
+      </Table>
     </List>
   );
 };

@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
-import { DateField, Show, TextField, ShowButton } from "@refinedev/antd";
-import { useShow, useInvalidate, useList } from "@refinedev/core";
-import { Typography, Tag, Descriptions, Table, Card, Space, Tooltip, Dropdown, Button, Modal, Form, Input, App } from "antd";
-import { CheckCircleOutlined, CloseCircleOutlined, LinkOutlined, ArrowLeftOutlined, StarOutlined, PlusOutlined, DownOutlined, FileTextOutlined, EditOutlined } from "@ant-design/icons";
-import { OhlcvChart } from "../../components/charts/OhlcvChart";
-import { useSearchParams, useNavigate } from "react-router";
+import { DateField, TextField } from "@refinedev/antd";
+import { useOne, useInvalidate, useList } from "@refinedev/core";
+import { Typography, Tag, Descriptions, Table, Card, Space, Tooltip, Dropdown, Button, Modal, Form, Input, App, Spin } from "antd";
+import { CheckCircleOutlined, CloseCircleOutlined, LinkOutlined, StarOutlined, PlusOutlined, DownOutlined, FileTextOutlined } from "@ant-design/icons";
+import { OhlcvChart } from "../charts/OhlcvChart";
+import { useNavigate } from "react-router";
 import { http } from "../../providers/hydra";
-import { PinnedNotesWidget, AssetNotesList, AssetNoteForm } from "../../components/asset-notes";
+import { PinnedNotesWidget, AssetNotesList, AssetNoteForm } from "../asset-notes";
 
 const { TextArea } = Input;
-
 const { Title } = Typography;
 
 const ASSET_TYPE_COLORS: Record<string, string> = {
@@ -34,7 +33,6 @@ interface ScreenerAsset {
   metrics?: Record<string, string>;
 }
 
-// Helper to get metric value from screenerAssets
 const getMetricValue = (screenerAssets: ScreenerAsset[] | undefined, metricKey: string): string | null => {
   if (!screenerAssets) return null;
   for (const sa of screenerAssets) {
@@ -65,23 +63,27 @@ interface Watchlist {
   color?: string | null;
 }
 
-export const AssetShow = () => {
+interface AssetDetailsPanelProps {
+  assetId: number;
+  contextFrom?: string;
+}
+
+export const AssetDetailsPanel: React.FC<AssetDetailsPanelProps> = ({ assetId }) => {
   const { modal, message } = App.useApp();
   const navigate = useNavigate();
   const invalidate = useInvalidate();
+
   const {
     query: { data, isLoading },
-  } = useShow({});
+  } = useOne({
+    resource: "assets",
+    id: assetId,
+    queryOptions: {
+      enabled: !!assetId,
+    }
+  });
 
   const record = data?.data;
-  const [searchParams] = useSearchParams();
-  const fromParam = searchParams.get("from");
-  const walletId = fromParam?.startsWith("wallet:")
-    ? fromParam.split(":")[1]
-    : null;
-  const watchlistId = fromParam?.startsWith("watchlist:")
-    ? fromParam.split(":")[1]
-    : null;
 
   // Watchlist states
   const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
@@ -98,10 +100,10 @@ export const AssetShow = () => {
 
   // Load asset notes
   const { query: notesQuery } = useList({
-    resource: `assets/${record?.id}/notes`,
+    resource: `assets/${assetId}/notes`,
     queryOptions: {
-      enabled: !!record?.id,
-      queryKey: ["asset_notes", record?.id],
+      enabled: !!assetId,
+      queryKey: ["asset_notes", assetId],
     },
     filters: [
       {
@@ -162,16 +164,13 @@ export const AssetShow = () => {
       });
       message.success("Actif ajouté à la watchlist");
 
-      // Reload watchlists to update the dropdown
       loadWatchlists();
 
-      // Invalidate watchlist caches - use "all" to refresh everything
       invalidate({
         resource: "watchlists",
         invalidates: ["all"],
       });
 
-      // Also invalidate watchlist_assets resource
       invalidate({
         resource: "watchlist_assets",
         invalidates: ["all"],
@@ -213,22 +212,18 @@ export const AssetShow = () => {
       setIsCreateWatchlistModalOpen(false);
       createWatchlistForm.resetFields();
 
-      // Reload watchlists to update the dropdown
       loadWatchlists();
 
-      // Invalidate watchlist caches - use "all" to refresh everything
       invalidate({
         resource: "watchlists",
         invalidates: ["all"],
       });
 
-      // Also invalidate watchlist_assets resource
       invalidate({
         resource: "watchlist_assets",
         invalidates: ["all"],
       });
 
-      // Optionally navigate to the new watchlist
       modal.confirm({
         title: "Watchlist créée",
         content: "Voulez-vous voir la watchlist ?",
@@ -321,7 +316,6 @@ export const AssetShow = () => {
   const getWatchlistMenuItems = () => {
     const items: any[] = [];
 
-    // Add existing watchlists
     watchlists.forEach((wl) => {
       items.push({
         key: `watchlist-${wl.id}`,
@@ -344,7 +338,6 @@ export const AssetShow = () => {
       });
     });
 
-    // Add separator and "Create new" option
     if (items.length > 0) {
       items.push({ type: "divider" });
     }
@@ -358,7 +351,7 @@ export const AssetShow = () => {
         </Space>
       ),
       onClick: () => {
-        loadWatchlists(); // Refresh list
+        loadWatchlists();
         setIsCreateWatchlistModalOpen(true);
       },
     });
@@ -366,44 +359,39 @@ export const AssetShow = () => {
     return items;
   };
 
+  if (isLoading) {
+    return (
+      <div style={{ padding: "100px", textAlign: "center" }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (!record) {
+    return (
+      <div style={{ padding: "100px", textAlign: "center" }}>
+        <p>Asset non trouvé</p>
+      </div>
+    );
+  }
+
   return (
-    <Show
-      isLoading={isLoading}
-      headerButtons={({ defaultButtons }) => (
-        <>
-          {walletId && (
-            <ShowButton
-              resource="wallets"
-              recordItemId={walletId}
-              icon={<ArrowLeftOutlined />}
-            >
-              Retour au wallet
-            </ShowButton>
-          )}
-          {watchlistId && (
-            <ShowButton
-              resource="watchlists"
-              recordItemId={watchlistId}
-              icon={<ArrowLeftOutlined />}
-            >
-              Retour à la watchlist
-            </ShowButton>
-          )}
-          <Dropdown
-            menu={{ items: getWatchlistMenuItems() }}
-            onOpenChange={(open) => {
-              if (open) loadWatchlists();
-            }}
-            trigger={["click"]}
-          >
-            <Button icon={<StarOutlined />} loading={watchlistsLoading}>
-              Ajouter à watchlist <DownOutlined />
-            </Button>
-          </Dropdown>
-          {defaultButtons}
-        </>
-      )}
-    >
+    <div style={{ padding: "16px 24px" }}>
+      {/* Header with watchlist dropdown */}
+      <div style={{ marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
+        <Dropdown
+          menu={{ items: getWatchlistMenuItems() }}
+          onOpenChange={(open) => {
+            if (open) loadWatchlists();
+          }}
+          trigger={["click"]}
+        >
+          <Button icon={<StarOutlined />} loading={watchlistsLoading}>
+            Ajouter à watchlist <DownOutlined />
+          </Button>
+        </Dropdown>
+      </div>
+
       {record?.id && <OhlcvChart assetId={record.id} />}
 
       <Title level={5}>Asset Details</Title>
@@ -724,6 +712,6 @@ export const AssetShow = () => {
           </Form.Item>
         </Form>
       </Modal>
-    </Show>
+    </div>
   );
 };
