@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Layout } from "antd";
+import { Layout, theme } from "antd";
 import { useLocation } from "react-router";
 import { useFilterContext } from "../../contexts/filter-context";
 import { AssetsFilter } from "../filters/AssetsFilter";
@@ -41,6 +41,7 @@ const filterComponents: Record<
 export const FilterSider: React.FC<FilterSiderProps> = () => {
   const location = useLocation();
   const { getFilterProps, siderVisible } = useFilterContext();
+  const { token } = theme.useToken();
 
   // Manage collapsed state with localStorage persistence
   const [collapsed, setCollapsed] = useState(() => {
@@ -81,16 +82,17 @@ export const FilterSider: React.FC<FilterSiderProps> = () => {
       collapsible
       collapsed={collapsed}
       onCollapse={handleCollapse}
-      width={280}
+      width={400}
       collapsedWidth={48}
       style={{
         overflow: "auto",
         height: "calc(100vh - 64px)", // Subtract header height
+        background: token.colorBgContainer,
       }}
-      theme="light"
+      className="filter-sider-scrollbar"
     >
       {/* Filter Content */}
-      <div style={{ padding: collapsed ? 0 : 16 }}>
+      <div style={{ padding: collapsed ? 0 : 16, paddingBottom: collapsed ? 0 : 24 }}>
         {FilterComponent && filterProps.formProps ? (
           <FilterComponent
             searchFormProps={filterProps.formProps}
@@ -108,6 +110,32 @@ export const FilterSider: React.FC<FilterSiderProps> = () => {
           </div>
         )}
       </div>
+
+      {/* Scrollbar styles */}
+      <style>{`
+        .filter-sider-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .filter-sider-scrollbar::-webkit-scrollbar-track {
+          background: ${token.colorBgContainer};
+        }
+
+        .filter-sider-scrollbar::-webkit-scrollbar-thumb {
+          background: ${token.colorBorder};
+          border-radius: 4px;
+        }
+
+        .filter-sider-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: ${token.colorBorderSecondary};
+        }
+
+        /* Firefox */
+        .filter-sider-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} ${token.colorBgContainer};
+        }
+      `}</style>
     </Sider>
   );
 };

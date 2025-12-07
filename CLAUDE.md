@@ -13,7 +13,7 @@ npm run start    # Start production server
 
 ## Architecture
 
-This is a Refine framework application using React 19, TypeScript, Vite, and Ant Design.
+The project use Refine framework application using React 19, TypeScript, Vite, and Ant Design.
 
 Refine documentation: https://refine.dev/docs/
 
@@ -24,6 +24,14 @@ Refine documentation: https://refine.dev/docs/
 - **Data**: Custom Hydra API Platform data provider connecting to `http://trendlasso/api`
 - **Build**: Vite v6.3.5 with React plugin
 - **React**: v19.1.0
+
+Always use context7 when I need code generation, setup or configuration steps, or
+library/API documentation. This means you should automatically use the Context7 MCP
+tools to resolve library id and get library docs without me having to explicitly ask.
+
+Project is accessible :
+Dev: http://localhost:5173/
+Prod: http://tradolasso/
 
 ### Key Architectural Patterns
 
@@ -52,6 +60,32 @@ Resources are defined in `App.tsx` with standard CRUD routes:
 - `list`, `create`, `edit/:id`, `show/:id`
 
 Each resource page uses Refine's Ant Design hooks (`useTable`, `useForm`, `useShow`) for data management.
+
+
+## Visual Development
+
+### Design Principles
+- Comprehensive design checklist in `context/design-principles.md`
+- When making visual (front-end, UI/UX) changes, always refer to these files for guidance
+
+### Quick Visual Check
+IMMEDIATELY after implementing any front-end change:
+1. **Identify what changed** - Review the modified components/pages
+2. **Navigate to affected pages** - Use `mcp__playwright__browser_navigate` to visit each changed view
+3. **Verify design compliance** - Compare against `/context/design-principles.md`
+4. **Validate feature implementation** - Ensure the change fulfills the user's specific request
+5. **Check acceptance criteria** - Review any provided context files or requirements
+6. **Capture evidence** - Take full page screenshot at desktop viewport (1920x1200px) of each changed view
+7. **Check for errors** - Run `mcp__playwright__browser_console_messages`
+
+This verification ensures changes meet design standards and user requirements.
+
+### Comprehensive Design Review
+Invoke the `@agent-design-review` subagent for thorough design validation when:
+- Completing significant UI/UX features
+- Before finalizing PRs with visual changes
+- Needing comprehensive accessibility and responsiveness testing
+
 
 ## Development Guidelines
 
@@ -86,7 +120,7 @@ All dates must be displayed in French format using `DateField` from `@refinedev/
 API base url (local):
 http://trendlasso/api/
 
-API documentation:
+Always check API documentation when you implement or change a feature that might use it.
 ```bash
 curl http://trendlasso/api/docs.jsonopenapi
 ```

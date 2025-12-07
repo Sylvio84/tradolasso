@@ -23,9 +23,8 @@ const getEndpoint = (resource: string): string => {
   return RESOURCE_ENDPOINT_MAP[resource] || resource;
 };
 
-export const hydraFetchDataProvider = {
-  default: {
-    getList: async ({ resource, filters, pagination, sorters }) => {
+const dataProvider = {
+  getList: async ({ resource, filters, pagination, sorters }) => {
       const params: any = {
         ...mapFilters(filters),
         ...mapSorters(sorters),
@@ -100,6 +99,7 @@ export const hydraFetchDataProvider = {
       return { data: { id } as BaseRecord };
     },
 
-    getApiUrl: () => API_URL,
-  },
+  getApiUrl: () => API_URL,
 };
+
+export const hydraFetchDataProvider = dataProvider;

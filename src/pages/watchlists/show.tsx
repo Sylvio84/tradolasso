@@ -14,6 +14,7 @@ import {
   Badge,
   App,
   Descriptions,
+  theme,
 } from "antd";
 import {
   EditOutlined,
@@ -104,6 +105,7 @@ interface Asset {
 
 export const WatchlistShow = () => {
   const { modal, message } = App.useApp();
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const { query: { data, isLoading } } = useShow({});
   const invalidate = useInvalidate();
@@ -526,10 +528,12 @@ export const WatchlistShow = () => {
         <Card title="Critères de filtrage">
           <pre
             style={{
-              background: "#f5f5f5",
+              background: token.colorFillQuaternary,
+              color: token.colorText,
               padding: 16,
-              borderRadius: 4,
+              borderRadius: token.borderRadiusLG,
               overflow: "auto",
+              border: `1px solid ${token.colorBorder}`,
             }}
           >
             {JSON.stringify(record.criterias, null, 2)}

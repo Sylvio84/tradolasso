@@ -1,4 +1,5 @@
 export { http } from './httpClient';
+export { cacheService } from './cacheService';
 export {
   normalize,
   processEnquiryData,

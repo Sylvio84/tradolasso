@@ -1,0 +1,113 @@
+```mermaid
+stateDiagram-v2
+    [*] --> FiltresLibres : Chargement initial
+
+    state "Filtres libres" as FiltresLibres {
+        state "Filtres actifs & éditables" as FL_Filtres
+        state "Actions: Créer auto / Créer manuelle" as FL_Actions
+    }
+
+    state "Watchlist automatique" as WatchlistAuto {
+        state "Filtres = critères watchlist" as WA_Filtres
+        state "Filtres éditables" as WA_Edit
+        state "Détection modifications" as WA_Detect
+        state "Actions: Mettre à jour / Sauver comme / Supprimer" as WA_Actions
+    }
+
+    state "Watchlist manuelle" as WatchlistManuelle {
+        state "Filtres désactivés (grisés)" as WM_Filtres
+        state "Affiche uniquement assets de la liste" as WM_Assets
+        state "Actions: Supprimer" as WM_Actions
+    }
+
+    %% Transitions depuis Filtres libres
+    FiltresLibres --> WatchlistAuto : Sélection watchlist auto
+    FiltresLibres --> WatchlistManuelle : Sélection watchlist manuelle
+
+    %% Transitions depuis Watchlist auto
+    WatchlistAuto --> FiltresLibres : Sélection "Aucune"\n(garde filtres)
+    WatchlistAuto --> FiltresLibres : Reset\n(réinit filtres)
+    WatchlistAuto --> WatchlistManuelle : Sélection watchlist manuelle
+    WatchlistAuto --> WatchlistAuto : Sélection autre watchlist auto\n(charge nouveaux filtres)
+
+    %% Transitions depuis Watchlist manuelle
+    WatchlistManuelle --> FiltresLibres : Sélection "Aucune"
+    WatchlistManuelle --> FiltresLibres : Reset\n(réinit filtres)
+    WatchlistManuelle --> WatchlistAuto : Sélection watchlist auto
+    WatchlistManuelle --> WatchlistManuelle : Sélection autre watchlist manuelle
+```
+
+---
+
+## Détail des transitions
+
+### Vers "Filtres libres"
+
+| Depuis | Action | Comportement filtres |
+|--------|--------|---------------------|
+| Watchlist auto | Sélection "Aucune" | **Garde** les filtres actuels |
+| Watchlist auto | Reset | **Réinitialise** tous les filtres |
+| Watchlist manuelle | Sélection "Aucune" | Réactive les filtres (derniers utilisés ou défaut) |
+| Watchlist manuelle | Reset | **Réinitialise** tous les filtres |
+
+### Vers "Watchlist automatique"
+
+| Depuis | Action | Comportement |
+|--------|--------|--------------|
+| Filtres libres | Sélection watchlist auto | Remplace les filtres par les critères de la watchlist |
+| Watchlist manuelle | Sélection watchlist auto | Réactive les filtres + les remplace par les critères |
+| Watchlist auto | Sélection autre watchlist auto | Remplace les filtres par les nouveaux critères |
+
+### Vers "Watchlist manuelle"
+
+| Depuis | Action | Comportement |
+|--------|--------|--------------|
+| Filtres libres | Sélection watchlist manuelle | Désactive les filtres, affiche les assets de la liste |
+| Watchlist auto | Sélection watchlist manuelle | Désactive les filtres, affiche les assets de la liste |
+| Watchlist manuelle | Sélection autre watchlist manuelle | Affiche les assets de la nouvelle liste |
+
+---
+
+## Sous-états en mode "Watchlist automatique"
+
+```mermaid
+stateDiagram-v2
+    [*] --> NonModifie : Chargement watchlist
+
+    state "Non modifié" as NonModifie {
+        state "Filtres = critères originaux" as NM_State
+        state "Bouton 'Mettre à jour' masqué" as NM_Btn
+    }
+
+    state "Modifié" as Modifie {
+        state "Filtres ≠ critères originaux" as M_State
+        state "Badge 'MODIFIÉ' visible" as M_Badge
+        state "Bouton 'Mettre à jour' visible" as M_Btn
+    }
+
+    NonModifie --> Modifie : Utilisateur modifie un filtre
+    Modifie --> NonModifie : Utilisateur remet les valeurs d'origine
+    Modifie --> NonModifie : Clic "Mettre à jour"\n(sauvegarde + nouveaux critères = original)
+```
+
+---
+
+## Actions et leurs effets
+
+```mermaid
+flowchart TB
+    subgraph "Mode: Filtres libres"
+        A1[Créer watchlist auto] --> A1R[Modal création → Sauvegarde critères → Reste en filtres libres]
+        A2[Sauver en watchlist manuelle] --> A2R[Modal création → Sauvegarde assets affichés → Reste en filtres libres]
+    end
+
+    subgraph "Mode: Watchlist auto"
+        B1[Mettre à jour] --> B1R[Sauvegarde nouveaux critères → Badge MODIFIÉ disparaît]
+        B2[Sauver comme nouvelle] --> B2R[Modal création → Nouvelle watchlist → Optionnel: basculer dessus]
+        B3[Supprimer] --> B3R[Confirmation → Suppression → Retour filtres libres]
+    end
+
+    subgraph "Mode: Watchlist manuelle"
+        C1[Supprimer] --> C1R[Confirmation → Suppression → Retour filtres libres]
+    end
+```

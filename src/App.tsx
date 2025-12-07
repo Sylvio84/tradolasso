@@ -28,6 +28,7 @@ import {
   WalletEdit,
   WalletList,
   WalletShow,
+  Wallets,
 } from "./pages/wallets";
 import {
   AssetCreate,
@@ -225,7 +226,7 @@ function App() {
                       element={<NavigateToResource resource="wallets" />}
                     />
                     <Route path="/wallets">
-                      <Route index element={<WalletList />} />
+                      <Route index element={<Wallets />} />
                       <Route path="create" element={<WalletCreate />} />
                       <Route path="edit/:id" element={<WalletEdit />} />
                       <Route path="show/:id" element={<WalletShow />} />

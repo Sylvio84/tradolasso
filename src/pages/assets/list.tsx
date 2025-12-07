@@ -6,13 +6,14 @@ import {
   useTable,
 } from "@refinedev/antd";
 import { type BaseRecord, type CrudFilters } from "@refinedev/core";
-import { Button, Space, Table } from "antd";
-import { FileTextOutlined } from "@ant-design/icons";
+import { App, Button, Input, Modal, Space, Table } from "antd";
+import { FileTextOutlined, PlusOutlined } from "@ant-design/icons";
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { AddToWatchlistButton } from "../../components/AddToWatchlistButton";
 import { AssetNotesModal } from "../../components/asset-notes";
 import { useFilterContext } from "../../contexts/filter-context";
+import { http } from "../../providers/hydra";
 import "flag-icons/css/flag-icons.min.css";
 
 const STORAGE_KEY = "assetFilters";
@@ -179,6 +180,8 @@ const formValuesToFilters = (values: Record<string, unknown>): CrudFilters => {
 
 export const AssetList = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { modal, message } = App.useApp();
   const { registerFilter, unregisterFilter } = useFilterContext();
   const initialFormValues = getInitialFormValues();
   const initialFilters = formValuesToFilters(initialFormValues);
@@ -191,6 +194,9 @@ export const AssetList = () => {
     open: false,
     assetId: null,
   });
+  const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
+  const [watchlistName, setWatchlistName] = useState("");
+  const [isCreatingWatchlist, setIsCreatingWatchlist] = useState(false);
 
   const { tableProps, searchFormProps } = useTable({
     syncWithLocation: true,
@@ -227,6 +233,86 @@ export const AssetList = () => {
     searchFormProps.form?.submit();
   };
 
+  // Convert form values to watchlist criteria (machine-readable format only)
+  const formValuesToCriteria = (values: Record<string, unknown>): string[] => {
+    const criteria: string[] = [];
+
+    // Range filters
+    RANGE_FILTERS.forEach(({ name }) => {
+      const min = values[`${name}Min`] as number | undefined;
+      const max = values[`${name}Max`] as number | undefined;
+      if (min != null || max != null) {
+        const multiplier = name === "marketcap" ? 1000000 : 1;
+        const minVal = min != null ? min * multiplier : "";
+        const maxVal = max != null ? max * multiplier : "";
+        criteria.push(`${name}:${minVal},${maxVal}`);
+      }
+    });
+
+    // Country filter
+    const countryCode = values.countryCode as string[] | undefined;
+    if (countryCode && countryCode.length > 0) {
+      criteria.push(`countryCode:${countryCode.join(",")}`);
+    }
+
+    return criteria;
+  };
+
+  // Handle create watchlist
+  const handleCreateWatchlist = async () => {
+    if (!watchlistName.trim()) {
+      message.error("Veuillez saisir un nom pour la watchlist");
+      return;
+    }
+
+    const formValues = searchFormProps.form?.getFieldsValue() || {};
+    const criteria = formValuesToCriteria(formValues);
+
+    if (criteria.length === 0) {
+      modal.confirm({
+        title: "Aucun filtre sélectionné",
+        content: "Vous n'avez sélectionné aucun filtre. Voulez-vous créer une watchlist vide ?",
+        okText: "Créer quand même",
+        cancelText: "Annuler",
+        onOk: async () => {
+          await createWatchlist(criteria);
+        },
+      });
+      return;
+    }
+
+    await createWatchlist(criteria);
+  };
+
+  const createWatchlist = async (criteria: string[]) => {
+    setIsCreatingWatchlist(true);
+    try {
+      const response = await http("/watchlists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: watchlistName.trim(),
+          assetType: "stock",
+          criterias: criteria,
+          isAutomatic: true,
+          status: "normal",
+        }),
+      });
+
+      message.success("Watchlist créée avec succès");
+      setWatchlistModalOpen(false);
+      setWatchlistName("");
+
+      // Navigate to the new watchlist
+      navigate(`/watchlists/show/${response.data.id}`);
+    } catch (error) {
+      console.error("Error creating watchlist:", error);
+      message.error("Erreur lors de la création de la watchlist");
+    } finally {
+      setIsCreatingWatchlist(false);
+    }
+  };
+
   // Register filter with context
   useEffect(() => {
     registerFilter(location.pathname, searchFormProps, handleReset);
@@ -234,7 +320,20 @@ export const AssetList = () => {
   }, [location.pathname, searchFormProps, registerFilter, unregisterFilter, handleReset]);
 
   return (
-    <List>
+    <List
+      headerButtons={({ defaultButtons }) => (
+        <>
+          {defaultButtons}
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setWatchlistModalOpen(true)}
+          >
+            Créer watchlist automatique
+          </Button>
+        </>
+      )}
+    >
       <Table
         {...tableProps}
         rowKey="id"
@@ -429,6 +528,31 @@ export const AssetList = () => {
           onClose={() => setNotesModalState({ open: false, assetId: null })}
         />
       )}
+
+      {/* Create Watchlist Modal */}
+      <Modal
+        title="Créer une watchlist automatique"
+        open={watchlistModalOpen}
+        onOk={handleCreateWatchlist}
+        onCancel={() => {
+          setWatchlistModalOpen(false);
+          setWatchlistName("");
+        }}
+        confirmLoading={isCreatingWatchlist}
+        okText="Créer"
+        cancelText="Annuler"
+      >
+        <p style={{ marginBottom: 16 }}>
+          Cette watchlist sera créée avec les filtres actuellement sélectionnés.
+        </p>
+        <Input
+          placeholder="Nom de la watchlist"
+          value={watchlistName}
+          onChange={(e) => setWatchlistName(e.target.value)}
+          onPressEnter={handleCreateWatchlist}
+          autoFocus
+        />
+      </Modal>
     </List>
   );
 };
