@@ -30,7 +30,7 @@ library/API documentation. This means you should automatically use the Context7 
 tools to resolve library id and get library docs without me having to explicitly ask.
 
 Project is accessible :
-Dev: http://localhost:5173/
+Dev: http://localhost:5174/
 Prod: http://tradolasso/
 
 ### Key Architectural Patterns
@@ -75,7 +75,7 @@ IMMEDIATELY after implementing any front-end change:
 3. **Verify design compliance** - Compare against `/context/design-principles.md`
 4. **Validate feature implementation** - Ensure the change fulfills the user's specific request
 5. **Check acceptance criteria** - Review any provided context files or requirements
-6. **Capture evidence** - Take full page screenshot at desktop viewport (1920x1200px) of each changed view
+6. **Capture evidence** - Take full page screenshot at desktop viewport (1900x960px) of each changed view
 7. **Check for errors** - Run `mcp__playwright__browser_console_messages`
 
 This verification ensures changes meet design standards and user requirements.

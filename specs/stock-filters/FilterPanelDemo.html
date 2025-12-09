@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FilterPanel - TrendLasso</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.10/dayjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/antd/5.12.2/antd.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/antd/5.12.2/reset.min.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    /* Custom Slider Styles */
+    .filter-slider .ant-slider-rail {
+      background: rgba(51, 65, 85, 0.5) !important;
+      height: 4px !important;
+    }
+    .filter-slider .ant-slider-track {
+      background: linear-gradient(90deg, #06b6d4, #3b82f6) !important;
+      height: 4px !important;
+    }
+    .filter-slider .ant-slider-handle::after {
+      width: 12px !important;
+      height: 12px !important;
+      background: #fff !important;
+      border: 2px solid #06b6d4 !important;
+      box-shadow: 0 2px 8px rgba(6, 182, 212, 0.4) !important;
+    }
+    .filter-slider .ant-slider-handle:hover::after,
+    .filter-slider .ant-slider-handle:focus::after {
+      border-color: #22d3ee !important;
+      box-shadow: 0 2px 12px rgba(34, 211, 238, 0.5) !important;
+    }
+    
+    /* Custom Select Styles */
+    .ant-select-selector {
+      background: rgba(30, 41, 59, 0.6) !important;
+      border-color: rgba(51, 65, 85, 0.8) !important;
+      border-radius: 10px !important;
+    }
+    .ant-select-selection-item {
+      color: #fff !important;
+    }
+    .ant-select:hover .ant-select-selector {
+      border-color: #06b6d4 !important;
+    }
+    .ant-select-dropdown {
+      background: #1e293b !important;
+      border: 1px solid rgba(51, 65, 85, 0.8) !important;
+      border-radius: 12px !important;
+    }
+    .ant-select-item {
+      color: #fff !important;
+    }
+    .ant-select-item-option-active {
+      background: rgba(51, 65, 85, 0.5) !important;
+    }
+    .ant-select-item-option-selected {
+      background: rgba(6, 182, 212, 0.15) !important;
+      color: #22d3ee !important;
+    }
+    .ant-select-arrow {
+      color: rgba(148, 163, 184, 0.8) !important;
+    }
+    
+    /* Toggle button */
+    .toggle-btn:hover {
+      color: #22d3ee !important;
+    }
+    .toggle-btn:hover .toggle-count {
+      color: rgba(148, 163, 184, 0.8) !important;
+    }
+    
+    /* Apply button hover */
+    .apply-btn:hover {
+      transform: scale(1.02);
+      box-shadow: 0 6px 20px rgba(6, 182, 212, 0.4) !important;
+    }
+    .apply-btn:active {
+      transform: scale(0.98);
+    }
+    
+    /* Tooltip */
+    .ant-tooltip-inner {
+      background: #1e293b !important;
+      border: 1px solid rgba(51, 65, 85, 0.8) !important;
+    }
+    .ant-tooltip-arrow::before {
+      background: #1e293b !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    const { useState } = React;
+    const { Slider, Select, Button, Tag, ConfigProvider, theme, Space, Typography } = antd;
+    const { Text } = Typography;
+    
+    // Icônes SVG inline
+    const FilterIcon = () => (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+      </svg>
+    );
+    
+    const ResetIcon = () => (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+      </svg>
+    );
+    
+    const ChevronDown = () => (
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m6 9 6 6 6-6"/>
+      </svg>
+    );
+    
+    const ChevronUp = () => (
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m18 15-6-6-6 6"/>
+      </svg>
+    );
+
+    // Composant Range Filter
+    const RangeFilter = ({ label, min = 0, max = 100, unit = '', step = 1, value, onChange }) => {
+      const hasValue = value[0] !== min || value[1] !== max;
+      
+      return (
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            marginBottom: 6
+          }}>
+            <span style={{ 
+              fontSize: 10, 
+              fontWeight: 600, 
+              textTransform: 'uppercase', 
+              letterSpacing: '0.05em',
+              color: 'rgba(148, 163, 184, 1)'
+            }}>
+              {label}
+            </span>
+            {hasValue && (
+              <span style={{ 
+                fontSize: 9, 
+                padding: '1px 6px',
+                borderRadius: 10,
+                background: 'rgba(6, 182, 212, 0.15)',
+                color: '#22d3ee',
+                fontWeight: 500
+              }}>
+                {value[0]}{unit} – {value[1]}{unit}
+              </span>
+            )}
+          </div>
+          <Slider
+            range
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={onChange}
+            tooltip={{ formatter: (v) => `${v}${unit}` }}
+            className="filter-slider"
+          />
+        </div>
+      );
+    };
+
+    // Composant Principal
+    const FilterPanel = () => {
+      const [showMore, setShowMore] = useState(false);
+      const [filters, setFilters] = useState({
+        watchlist: 'free',
+        country: 'all',
+        marketCap: [0, 500],
+        adx: [0, 100],
+        volatility: [0, 100],
+        lassoScore: [0, 100],
+        visScore: [0, 100],
+        visStars: [0, 5],
+        zbInvest: [0, 100],
+        fintelComp: [0, 100],
+        zbComp: [0, 100],
+        visPbs: [0, 100],
+      });
+
+      const countActiveFilters = () => {
+        let count = 0;
+        if (filters.watchlist !== 'free') count++;
+        if (filters.country !== 'all') count++;
+        if (filters.marketCap[0] !== 0 || filters.marketCap[1] !== 500) count++;
+        if (filters.adx[0] !== 0 || filters.adx[1] !== 100) count++;
+        if (filters.volatility[0] !== 0 || filters.volatility[1] !== 100) count++;
+        if (filters.lassoScore[0] !== 0 || filters.lassoScore[1] !== 100) count++;
+        if (filters.visScore[0] !== 0 || filters.visScore[1] !== 100) count++;
+        if (filters.visStars[0] !== 0 || filters.visStars[1] !== 5) count++;
+        if (filters.zbInvest[0] !== 0 || filters.zbInvest[1] !== 100) count++;
+        if (filters.fintelComp[0] !== 0 || filters.fintelComp[1] !== 100) count++;
+        if (filters.zbComp[0] !== 0 || filters.zbComp[1] !== 100) count++;
+        if (filters.visPbs[0] !== 0 || filters.visPbs[1] !== 100) count++;
+        return count;
+      };
+
+      const handleReset = () => {
+        setFilters({
+          watchlist: 'free',
+          country: 'all',
+          marketCap: [0, 500],
+          adx: [0, 100],
+          volatility: [0, 100],
+          lassoScore: [0, 100],
+          visScore: [0, 100],
+          visStars: [0, 5],
+          zbInvest: [0, 100],
+          fintelComp: [0, 100],
+          zbComp: [0, 100],
+          visPbs: [0, 100],
+        });
+      };
+
+      const activeCount = countActiveFilters();
+
+      const labelStyle = {
+        fontSize: 10, 
+        fontWeight: 600, 
+        textTransform: 'uppercase', 
+        letterSpacing: '0.05em',
+        color: 'rgba(148, 163, 184, 1)',
+        display: 'block',
+        marginBottom: 8
+      };
+
+      return (
+        <div style={{
+          width: 320,
+          background: 'linear-gradient(180deg, #0f172a 0%, #020617 100%)',
+          borderRadius: 16,
+          border: '1px solid rgba(51, 65, 85, 0.6)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          overflow: 'hidden'
+        }}>
+          {/* Header */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: '1px solid rgba(51, 65, 85, 0.4)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ 
+                width: 36, 
+                height: 36, 
+                borderRadius: 10,
+                background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(6, 182, 212, 0.25)',
+                color: '#fff'
+              }}>
+                <FilterIcon />
+              </div>
+              <div>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>Filtres</div>
+                {activeCount > 0 && (
+                  <div style={{ color: '#22d3ee', fontSize: 10 }}>
+                    {activeCount} actif{activeCount > 1 ? 's' : ''}
+                  </div>
+                )}
+              </div>
+            </div>
+            <button 
+              onClick={handleReset}
+              style={{ 
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 10px',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: 6,
+                color: 'rgba(148, 163, 184, 0.8)',
+                fontSize: 12,
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(51, 65, 85, 0.4)';
+                e.currentTarget.style.color = '#fff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'rgba(148, 163, 184, 0.8)';
+              }}
+            >
+              <ResetIcon /> Reset
+            </button>
+          </div>
+
+          {/* Watchlist & Pays */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(51, 65, 85, 0.3)' }}>
+            <div style={{ marginBottom: 16 }}>
+              <span style={labelStyle}>Watchlist</span>
+              <Select
+                value={filters.watchlist}
+                onChange={(val) => setFilters(prev => ({ ...prev, watchlist: val }))}
+                style={{ width: '100%' }}
+                options={[
+                  { value: 'free', label: '🔓 Filtres libres' },
+                  { value: 'momentum', label: '📈 Momentum Stars' },
+                  { value: 'value', label: '💎 Value Picks' },
+                  { value: 'custom', label: '⭐ Ma sélection' },
+                ]}
+              />
+            </div>
+            <div>
+              <span style={labelStyle}>Pays</span>
+              <Select
+                value={filters.country}
+                onChange={(val) => setFilters(prev => ({ ...prev, country: val }))}
+                style={{ width: '100%' }}
+                options={[
+                  { value: 'all', label: '🌍 Tous les pays' },
+                  { value: 'us', label: '🇺🇸 États-Unis' },
+                  { value: 'fr', label: '🇫🇷 France' },
+                  { value: 'eu', label: '🇪🇺 Europe' },
+                ]}
+              />
+            </div>
+          </div>
+
+          {/* Filtres principaux - Grille 2 colonnes */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(51, 65, 85, 0.3)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 16px' }}>
+              <RangeFilter 
+                label="Market Cap" 
+                min={0} max={500} unit="M€"
+                value={filters.marketCap}
+                onChange={(val) => setFilters(prev => ({ ...prev, marketCap: val }))}
+              />
+              <RangeFilter 
+                label="ADX" 
+                min={0} max={100}
+                value={filters.adx}
+                onChange={(val) => setFilters(prev => ({ ...prev, adx: val }))}
+              />
+              <RangeFilter 
+                label="Volatility" 
+                min={0} max={100} unit="%"
+                value={filters.volatility}
+                onChange={(val) => setFilters(prev => ({ ...prev, volatility: val }))}
+              />
+              <RangeFilter 
+                label="Lasso Score" 
+                min={0} max={100}
+                value={filters.lassoScore}
+                onChange={(val) => setFilters(prev => ({ ...prev, lassoScore: val }))}
+              />
+            </div>
+          </div>
+
+          {/* Plus de filtres - Collapsible */}
+          <div style={{ padding: '12px 20px' }}>
+            <div
+              className="toggle-btn"
+              onClick={() => setShowMore(!showMore)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 0',
+                cursor: 'pointer',
+                color: 'rgba(148, 163, 184, 1)',
+                transition: 'color 0.2s'
+              }}
+            >
+              <span style={{ 
+                fontSize: 10, 
+                fontWeight: 600, 
+                textTransform: 'uppercase', 
+                letterSpacing: '0.05em'
+              }}>
+                Plus de filtres
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="toggle-count" style={{ fontSize: 10, color: 'rgba(71, 85, 105, 1)', transition: 'color 0.2s' }}>
+                  6 disponibles
+                </span>
+                {showMore ? <ChevronUp /> : <ChevronDown />}
+              </div>
+            </div>
+
+            <div style={{ 
+              maxHeight: showMore ? 300 : 0, 
+              overflow: 'hidden',
+              transition: 'max-height 0.3s ease-out, opacity 0.3s ease-out',
+              opacity: showMore ? 1 : 0
+            }}>
+              <div style={{ paddingTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 16px' }}>
+                <RangeFilter 
+                  label="VIS Score" 
+                  min={0} max={100}
+                  value={filters.visScore}
+                  onChange={(val) => setFilters(prev => ({ ...prev, visScore: val }))}
+                />
+                <RangeFilter 
+                  label="VIS Stars" 
+                  min={0} max={5} step={0.5}
+                  value={filters.visStars}
+                  onChange={(val) => setFilters(prev => ({ ...prev, visStars: val }))}
+                />
+                <RangeFilter 
+                  label="ZB Invest" 
+                  min={0} max={100} unit="%"
+                  value={filters.zbInvest}
+                  onChange={(val) => setFilters(prev => ({ ...prev, zbInvest: val }))}
+                />
+                <RangeFilter 
+                  label="Fintel Comp" 
+                  min={0} max={100}
+                  value={filters.fintelComp}
+                  onChange={(val) => setFilters(prev => ({ ...prev, fintelComp: val }))}
+                />
+                <RangeFilter 
+                  label="ZB Comp" 
+                  min={0} max={100}
+                  value={filters.zbComp}
+                  onChange={(val) => setFilters(prev => ({ ...prev, zbComp: val }))}
+                />
+                <RangeFilter 
+                  label="VIS PBS" 
+                  min={0} max={100}
+                  value={filters.visPbs}
+                  onChange={(val) => setFilters(prev => ({ ...prev, visPbs: val }))}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Bouton Appliquer */}
+          <div style={{ padding: '16px 20px', background: 'rgba(2, 6, 23, 0.5)' }}>
+            <button 
+              className="apply-btn"
+              onClick={() => console.log('Filters:', filters)}
+              style={{ 
+                width: '100%',
+                height: 46,
+                borderRadius: 12,
+                background: 'linear-gradient(90deg, #06b6d4, #3b82f6)',
+                border: 'none',
+                fontWeight: 600,
+                fontSize: 13,
+                color: '#fff',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(6, 182, 212, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                transition: 'all 0.2s'
+              }}
+            >
+              <FilterIcon /> Appliquer les filtres
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // App avec ConfigProvider
+    const App = () => (
+      <ConfigProvider
+        theme={{
+          algorithm: theme.darkAlgorithm,
+          token: {
+            colorPrimary: '#06b6d4',
+            borderRadius: 10,
+          }
+        }}
+      >
+        <FilterPanel />
+      </ConfigProvider>
+    );
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

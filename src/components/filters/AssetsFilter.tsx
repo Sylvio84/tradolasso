@@ -1,21 +1,22 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   Button,
   Form,
-  InputNumber,
   Select,
+  Slider,
   Space,
   Modal,
   Input,
   App,
   Divider,
-  Typography,
   Alert,
-  theme,
 } from "antd";
 import {
+  FilterOutlined,
+  ReloadOutlined,
+  DownOutlined,
+  UpOutlined,
   ClearOutlined,
-  SearchOutlined,
   PlusOutlined,
   SaveOutlined,
   DeleteOutlined,
@@ -23,76 +24,45 @@ import {
   PushpinOutlined,
 } from "@ant-design/icons";
 import { useList, useInvalidate } from "@refinedev/core";
-import { FilterContainer } from "./FilterContainer";
-import { ModeIndicator, type ScreenerMode } from "./ModeIndicator";
 import type { FilterComponentProps } from "../layout/FilterSider";
 import { http } from "../../providers/hydra";
 import isEqual from "lodash/isEqual";
 
-const { Text } = Typography;
+type ScreenerMode = "filters" | "auto" | "manual";
 
-// Country codes available in the API
-const COUNTRY_OPTIONS = [
-  { value: "AE", label: "Émirats arabes unis" },
-  { value: "AT", label: "Autriche" },
-  { value: "AU", label: "Australie" },
-  { value: "BE", label: "Belgique" },
-  { value: "BR", label: "Brésil" },
-  { value: "CA", label: "Canada" },
-  { value: "CH", label: "Suisse" },
-  { value: "CN", label: "Chine" },
-  { value: "DE", label: "Allemagne" },
-  { value: "DK", label: "Danemark" },
-  { value: "ES", label: "Espagne" },
-  { value: "FI", label: "Finlande" },
-  { value: "FR", label: "France" },
-  { value: "GB", label: "Royaume-Uni" },
-  { value: "GR", label: "Grèce" },
-  { value: "HK", label: "Hong Kong" },
-  { value: "HU", label: "Hongrie" },
-  { value: "ID", label: "Indonésie" },
-  { value: "IE", label: "Irlande" },
-  { value: "IL", label: "Israël" },
-  { value: "IN", label: "Inde" },
-  { value: "IT", label: "Italie" },
-  { value: "JP", label: "Japon" },
-  { value: "KR", label: "Corée du Sud" },
-  { value: "LU", label: "Luxembourg" },
-  { value: "MX", label: "Mexique" },
-  { value: "MY", label: "Malaisie" },
-  { value: "NL", label: "Pays-Bas" },
-  { value: "NO", label: "Norvège" },
-  { value: "PL", label: "Pologne" },
-  { value: "PT", label: "Portugal" },
-  { value: "SE", label: "Suède" },
-  { value: "SG", label: "Singapour" },
-  { value: "TH", label: "Thaïlande" },
-  { value: "TR", label: "Turquie" },
-  { value: "TW", label: "Taïwan" },
-  { value: "US", label: "États-Unis" },
-  { value: "VN", label: "Vietnam" },
-  { value: "ZA", label: "Afrique du Sud" },
-];
+// Helper to get flag emoji from country code
+const getFlagEmoji = (countryCode: string): string => {
+  const codePoints = countryCode
+    .toUpperCase()
+    .split("")
+    .map((char) => 127397 + char.charCodeAt(0));
+  return String.fromCodePoint(...codePoints);
+};
 
-// Range filter field configuration
+// Range filter configuration
 interface RangeFilterConfig {
   name: string;
   label: string;
-  min?: number;
-  max?: number;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
 }
 
-const RANGE_FILTERS: RangeFilterConfig[] = [
-  { name: "marketcap", label: "Market Cap (M€)" },
-  { name: "adx", label: "ADX" },
-  { name: "atrPercent", label: "Volatility" },
-  { name: "lassoScore", label: "Lasso Score" },
-  { name: "visScore", label: "VIS Score" },
-  { name: "globalStars", label: "VIS Stars", min: 1, max: 5 },
-  { name: "zonebourseInvestisseur", label: "ZB Invest." },
-  { name: "fintelScore", label: "Fintel comp" },
-  { name: "zonebourseScore", label: "ZB comp" },
-  { name: "piotrosBeneishSloanScore", label: "VIS PBS" },
+const MAIN_FILTERS: RangeFilterConfig[] = [
+  { name: "marketcap", label: "Market Cap", min: 0, max: 500, unit: "M€" },
+  { name: "adx", label: "ADX", min: 0, max: 100 },
+  { name: "atrPercent", label: "Volatility", min: 0, max: 100, unit: "%" },
+  { name: "lassoScore", label: "Lasso Score", min: 0, max: 100 },
+];
+
+const EXTRA_FILTERS: RangeFilterConfig[] = [
+  { name: "visScore", label: "VIS Score", min: 0, max: 100 },
+  { name: "globalStars", label: "VIS Stars", min: 0, max: 5, step: 0.5 },
+  { name: "zonebourseInvestisseur", label: "ZB Invest", min: 0, max: 100, unit: "%" },
+  { name: "fintelScore", label: "Fintel Comp", min: 0, max: 100 },
+  { name: "zonebourseScore", label: "ZB Comp", min: 0, max: 100 },
+  { name: "piotrosBeneishSloanScore", label: "VIS PBS", min: 0, max: 100 },
 ];
 
 interface WatchlistCriterias {
@@ -118,7 +88,7 @@ const criteriasToFormValues = (criterias: WatchlistCriterias | undefined): Filte
   const filters = criterias.filters;
 
   // Parse range filters
-  RANGE_FILTERS.forEach(({ name }) => {
+  [...MAIN_FILTERS, ...EXTRA_FILTERS].forEach(({ name }) => {
     if (filters[name]) {
       const multiplier = name === "marketcap" ? 1000000 : 1;
       if (filters[name].gte != null) {
@@ -143,7 +113,7 @@ const formValuesToCriterias = (values: FilterValues): WatchlistCriterias => {
   const filters: Record<string, any> = {};
 
   // Range filters
-  RANGE_FILTERS.forEach(({ name }) => {
+  [...MAIN_FILTERS, ...EXTRA_FILTERS].forEach(({ name }) => {
     const min = values[`${name}Min`] as number | undefined;
     const max = values[`${name}Max`] as number | undefined;
     if (min != null || max != null) {
@@ -167,13 +137,53 @@ const formValuesToCriterias = (values: FilterValues): WatchlistCriterias => {
   };
 };
 
+interface RangeFilterProps {
+  label: string;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  value?: [number, number];
+  onChange?: (value: [number, number]) => void;
+  disabled?: boolean;
+}
+
+const RangeFilter: React.FC<RangeFilterProps> = ({
+  label,
+  min,
+  max,
+  step = 1,
+  unit = "",
+  value = [min, max],
+  onChange,
+  disabled = false,
+}) => {
+  return (
+    <div>
+      <div style={{ marginBottom: 8 }}>
+        {label}
+        {unit && value && ` (${value[0]}${unit} - ${value[1]}${unit})`}
+      </div>
+      <Slider
+        range
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+      />
+    </div>
+  );
+};
+
 export const AssetsFilter: React.FC<FilterComponentProps> = ({
   searchFormProps,
   onReset,
 }) => {
+  const [showMore, setShowMore] = useState(false);
   const { modal, message } = App.useApp();
   const invalidate = useInvalidate();
-  const { token } = theme.useToken();
 
   // State for mode and watchlist
   const [mode, setMode] = useState<ScreenerMode>("filters");
@@ -187,6 +197,9 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
   const [watchlistName, setWatchlistName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
+  // State for countries
+  const [countryOptions, setCountryOptions] = useState<Array<{ value: string; label: string }>>([]);
+
   // Load watchlists for stocks
   const { query: watchlistsQuery } = useList<Watchlist>({
     resource: "watchlists",
@@ -197,21 +210,62 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
   const watchlists = watchlistsQuery.data?.data || [];
   const refetchWatchlists = watchlistsQuery.refetch;
 
-  // Group watchlists by type
-  const { autoWatchlists, manualWatchlists } = useMemo(() => {
-    const auto = watchlists.filter((w) => w.isAutomatic);
-    const manual = watchlists.filter((w) => !w.isAutomatic);
-    return { autoWatchlists: auto, manualWatchlists: manual };
-  }, [watchlists]);
+  // Fetch countries from API
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const response = await http("/countries?assetType=stock", {
+          method: "GET",
+        });
+
+        // Transform {"US": "United States", "FR": "France"} to [{value: "US", label: "🇺🇸 United States"}, ...]
+        const countries = Object.entries(response.data as Record<string, string>).map(
+          ([code, name]) => ({
+            value: code,
+            label: `${getFlagEmoji(code)} ${name}`,
+          })
+        );
+
+        // Sort by label
+        countries.sort((a, b) => a.label.localeCompare(b.label));
+
+        setCountryOptions(countries);
+      } catch (error) {
+        console.error("Error fetching countries:", error);
+      }
+    };
+
+    fetchCountries();
+  }, []);
 
   // Get current form values
   const currentFilters = searchFormProps.form?.getFieldsValue() || {};
 
   // Detect if filters are modified (only in auto mode)
-  const filtersModified = useMemo(() => {
-    if (mode !== "auto" || !originalFilters) return false;
-    return !isEqual(currentFilters, originalFilters);
-  }, [mode, originalFilters, currentFilters]);
+  const filtersModified = mode === "auto" && originalFilters ? !isEqual(currentFilters, originalFilters) : false;
+
+  // Watch form values to count active filters
+  const formValues = Form.useWatch([], searchFormProps.form) || {};
+
+  const countActiveFilters = () => {
+    let count = 0;
+
+    // Count country filter
+    if (formValues.countryCode && formValues.countryCode.length > 0) count++;
+
+    // Count range filters
+    [...MAIN_FILTERS, ...EXTRA_FILTERS].forEach(({ name, min, max }) => {
+      const minVal = formValues[`${name}Min`];
+      const maxVal = formValues[`${name}Max`];
+      if (minVal !== undefined || maxVal !== undefined) {
+        if (minVal !== min || maxVal !== max) count++;
+      }
+    });
+
+    return count;
+  };
+
+  const activeCount = countActiveFilters();
 
   // Handle watchlist selection
   const handleWatchlistChange = async (value: number | null) => {
@@ -279,7 +333,7 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
         }),
       });
 
-      message.success("Watchlist automatique créée");
+      message.success("Filtrage créé avec succès");
       setCreateAutoModalOpen(false);
       setWatchlistName("");
       refetchWatchlists();
@@ -347,7 +401,7 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
         }),
       });
 
-      message.success("Nouvelle watchlist créée");
+      message.success("Nouveau filtrage créé");
       setSaveAsModalOpen(false);
       setWatchlistName("");
       refetchWatchlists();
@@ -366,7 +420,7 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
     const criterias = formValuesToCriterias(currentFilters);
 
     modal.confirm({
-      title: "Mettre à jour la watchlist",
+      title: "Mettre à jour le filtrage",
       content: `Voulez-vous mettre à jour "${selectedWatchlist.name}" avec les filtres actuels ?`,
       okText: "Mettre à jour",
       cancelText: "Annuler",
@@ -378,7 +432,7 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
             body: JSON.stringify({ criterias }),
           });
 
-          message.success("Watchlist mise à jour");
+          message.success("Filtrage mis à jour");
           setOriginalFilters(currentFilters);
           refetchWatchlists();
           invalidate({ resource: "watchlists", invalidates: ["detail"] });
@@ -394,8 +448,12 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
   const handleDeleteWatchlist = async () => {
     if (!selectedWatchlist) return;
 
+    const isAuto = selectedWatchlist.isAutomatic;
+    const itemType = isAuto ? "filtrage" : "watchlist";
+    const itemTypeCapitalized = isAuto ? "Filtrage" : "Watchlist";
+
     modal.confirm({
-      title: "Supprimer la watchlist",
+      title: `Supprimer ${isAuto ? "le" : "la"} ${itemType}`,
       content: `Voulez-vous vraiment supprimer "${selectedWatchlist.name}" ?`,
       okText: "Supprimer",
       okType: "danger",
@@ -406,7 +464,7 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
             method: "DELETE",
           });
 
-          message.success("Watchlist supprimée");
+          message.success(`${itemTypeCapitalized} ${isAuto ? "supprimé" : "supprimée"}`);
           handleReset();
           refetchWatchlists();
           invalidate({ resource: "watchlists", invalidates: ["list"] });
@@ -421,23 +479,33 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
   // Filters are disabled in manual mode
   const filtersDisabled = mode === "manual";
 
+  // Group watchlists by type
+  const autoWatchlists = watchlists.filter((w) => w.isAutomatic);
+  const manualWatchlists = watchlists.filter((w) => !w.isAutomatic);
+
   return (
-    <FilterContainer
-      extra={
-        <Button size="small" icon={<ClearOutlined />} onClick={handleReset}>
+    <div>
+      {/* Header */}
+      <Space style={{ width: "100%", justifyContent: "space-between", marginBottom: 16 }}>
+        <Space>
+          <FilterOutlined />
+          <span>
+            Filtres
+            {activeCount > 0 && ` (${activeCount})`}
+          </span>
+        </Space>
+        <Button
+          type="text"
+          icon={<ReloadOutlined />}
+          onClick={handleReset}
+          size="small"
+        >
           Reset
         </Button>
-      }
-    >
-      {/* Mode Indicator */}
-      <ModeIndicator
-        mode={mode}
-        watchlistName={selectedWatchlist?.name}
-        isModified={filtersModified}
-      />
+      </Space>
 
       {/* Watchlist Selector */}
-      <Form.Item label="Watchlist">
+      <Form.Item style={{ marginBottom: 16 }}>
         <Select
           value={selectedWatchlist?.id ?? "__none__"}
           onChange={(value) => handleWatchlistChange(value === "__none__" ? null : value as number)}
@@ -448,12 +516,12 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
           <Select.Option value="__none__">
             <Space>
               <ClearOutlined />
-              Aucune (filtres libres)
+              Filtres libres
             </Space>
           </Select.Option>
 
           {autoWatchlists.length > 0 && (
-            <Select.OptGroup label="AUTOMATIQUES">
+            <Select.OptGroup label="MES FILTRAGES">
               {autoWatchlists.map((w) => (
                 <Select.Option key={w.id} value={w.id}>
                   <Space>
@@ -466,7 +534,7 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
           )}
 
           {manualWatchlists.length > 0 && (
-            <Select.OptGroup label="MANUELLES">
+            <Select.OptGroup label="MES WATCHLISTS">
               {manualWatchlists.map((w) => (
                 <Select.Option key={w.id} value={w.id}>
                   <Space>
@@ -492,57 +560,104 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
         />
       )}
 
-      {/* Filter Form */}
-      <Form {...searchFormProps} layout="vertical" size="small">
-        <Form.Item label="Pays">
-          <Form.Item name="countryCode" noStyle>
-            <Select
-              mode="multiple"
-              allowClear
-              placeholder="Tous les pays"
-              options={COUNTRY_OPTIONS}
-              optionFilterProp="label"
-              style={{ width: "100%" }}
-              maxTagCount={2}
-              disabled={filtersDisabled}
-            />
-          </Form.Item>
+      <Form {...searchFormProps} layout="vertical">
+        {/* Pays */}
+        <Form.Item label="Pays" name="countryCode">
+          <Select
+            mode="multiple"
+            placeholder="🌍 Tous les pays"
+            options={countryOptions}
+            optionFilterProp="label"
+            allowClear
+            maxTagCount={2}
+            disabled={filtersDisabled}
+            loading={countryOptions.length === 0}
+          />
         </Form.Item>
 
-        {RANGE_FILTERS.map(({ name, label, min, max }) => (
-          <Form.Item key={name} label={label}>
-            <Space.Compact style={{ width: "100%" }}>
-              <Form.Item name={`${name}Min`} noStyle>
-                <InputNumber
-                  placeholder="Min"
-                  min={min}
-                  max={max}
-                  style={{ width: "50%" }}
+        {/* Filtres principaux */}
+        {MAIN_FILTERS.map((config) => (
+          <Form.Item
+            key={config.name}
+            noStyle
+            shouldUpdate={(prev, curr) =>
+              prev[`${config.name}Min`] !== curr[`${config.name}Min`] ||
+              prev[`${config.name}Max`] !== curr[`${config.name}Max`]
+            }
+          >
+            {({ getFieldValue, setFieldsValue }) => {
+              const minVal = getFieldValue(`${config.name}Min`) ?? config.min;
+              const maxVal = getFieldValue(`${config.name}Max`) ?? config.max;
+              return (
+                <RangeFilter
+                  {...config}
+                  value={[minVal, maxVal]}
+                  onChange={(value) => {
+                    setFieldsValue({
+                      [`${config.name}Min`]: value[0],
+                      [`${config.name}Max`]: value[1],
+                    });
+                  }}
                   disabled={filtersDisabled}
                 />
-              </Form.Item>
-              <Form.Item name={`${name}Max`} noStyle>
-                <InputNumber
-                  placeholder="Max"
-                  min={min}
-                  max={max}
-                  style={{ width: "50%" }}
-                  disabled={filtersDisabled}
-                />
-              </Form.Item>
-            </Space.Compact>
+              );
+            }}
           </Form.Item>
         ))}
 
+        {/* Plus de filtres - Collapsible */}
+        <Button
+          type="link"
+          onClick={() => setShowMore(!showMore)}
+          icon={showMore ? <UpOutlined /> : <DownOutlined />}
+          style={{ marginBottom: 16, padding: 0 }}
+        >
+          Plus de filtres ({EXTRA_FILTERS.length})
+        </Button>
+
+        {showMore && (
+          <div>
+            {EXTRA_FILTERS.map((config) => (
+              <Form.Item
+                key={config.name}
+                noStyle
+                shouldUpdate={(prev, curr) =>
+                  prev[`${config.name}Min`] !== curr[`${config.name}Min`] ||
+                  prev[`${config.name}Max`] !== curr[`${config.name}Max`]
+                }
+              >
+                {({ getFieldValue, setFieldsValue }) => {
+                  const minVal = getFieldValue(`${config.name}Min`) ?? config.min;
+                  const maxVal = getFieldValue(`${config.name}Max`) ?? config.max;
+                  return (
+                    <RangeFilter
+                      {...config}
+                      value={[minVal, maxVal]}
+                      onChange={(value) => {
+                        setFieldsValue({
+                          [`${config.name}Min`]: value[0],
+                          [`${config.name}Max`]: value[1],
+                        });
+                      }}
+                      disabled={filtersDisabled}
+                    />
+                  );
+                }}
+              </Form.Item>
+            ))}
+          </div>
+        )}
+
+        {/* Bouton Appliquer */}
         {!filtersDisabled && (
-          <Form.Item style={{ marginBottom: 0, marginTop: 16 }}>
+          <Form.Item>
             <Button
               type="primary"
               htmlType="submit"
-              icon={<SearchOutlined />}
+              icon={<FilterOutlined />}
               block
             >
-              Appliquer
+              Appliquer les filtres
             </Button>
           </Form.Item>
         )}
@@ -559,14 +674,14 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
               onClick={() => setCreateAutoModalOpen(true)}
               block
             >
-              Créer watchlist automatique
+              Créer un nouveau filtrage
             </Button>
             <Button
               icon={<SaveOutlined />}
               onClick={() => setCreateManualModalOpen(true)}
               block
             >
-              Créer watchlist manuelle
+              Créer une nouvelle watchlist
             </Button>
           </>
         )}
@@ -580,7 +695,7 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
                 onClick={handleUpdateWatchlist}
                 block
               >
-                Mettre à jour {selectedWatchlist?.name}
+                Mettre à jour ce filtrage
               </Button>
             )}
             <Button
@@ -588,7 +703,7 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
               onClick={() => setSaveAsModalOpen(true)}
               block
             >
-              Sauver comme nouvelle...
+              Sauver comme nouveau filtrage
             </Button>
             <Button
               danger
@@ -596,7 +711,7 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
               onClick={handleDeleteWatchlist}
               block
             >
-              Supprimer watchlist
+              Supprimer ce filtrage
             </Button>
           </>
         )}
@@ -608,14 +723,14 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
             onClick={handleDeleteWatchlist}
             block
           >
-            Supprimer watchlist
+            Supprimer cette watchlist
           </Button>
         )}
       </Space>
 
       {/* Modals */}
       <Modal
-        title="Créer une watchlist automatique"
+        title="Sauver comme nouveau filtrage"
         open={createAutoModalOpen}
         onOk={handleCreateAutoWatchlist}
         onCancel={() => {
@@ -627,10 +742,10 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
         cancelText="Annuler"
       >
         <p style={{ marginBottom: 16 }}>
-          Cette watchlist sera créée avec les filtres actuellement sélectionnés.
+          Ce filtrage sera créé avec les critères actuellement sélectionnés.
         </p>
         <Input
-          placeholder="Nom de la watchlist"
+          placeholder="Nom du filtrage"
           value={watchlistName}
           onChange={(e) => setWatchlistName(e.target.value)}
           onPressEnter={handleCreateAutoWatchlist}
@@ -639,7 +754,7 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
       </Modal>
 
       <Modal
-        title="Créer une watchlist manuelle"
+        title="Créer une nouvelle watchlist"
         open={createManualModalOpen}
         onOk={handleCreateManualWatchlist}
         onCancel={() => {
@@ -651,7 +766,7 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
         cancelText="Annuler"
       >
         <p style={{ marginBottom: 16 }}>
-          Une watchlist manuelle vide sera créée. Vous pourrez y ajouter des assets manuellement depuis la liste.
+          Une watchlist vide sera créée. Vous pourrez y ajouter des assets manuellement depuis la liste.
         </p>
         <Input
           placeholder="Nom de la watchlist"
@@ -663,7 +778,7 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
       </Modal>
 
       <Modal
-        title="Sauver comme nouvelle watchlist"
+        title="Sauver comme nouveau filtrage"
         open={saveAsModalOpen}
         onOk={handleSaveAsNew}
         onCancel={() => {
@@ -675,16 +790,16 @@ export const AssetsFilter: React.FC<FilterComponentProps> = ({
         cancelText="Annuler"
       >
         <p style={{ marginBottom: 16 }}>
-          Créer une nouvelle watchlist automatique avec les filtres actuels.
+          Créer un nouveau filtrage avec les critères actuels.
         </p>
         <Input
-          placeholder="Nom de la watchlist"
+          placeholder="Nom du filtrage"
           value={watchlistName}
           onChange={(e) => setWatchlistName(e.target.value)}
           onPressEnter={handleSaveAsNew}
           autoFocus
         />
       </Modal>
-    </FilterContainer>
+    </div>
   );
 };
